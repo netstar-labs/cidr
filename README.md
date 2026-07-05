@@ -90,6 +90,26 @@ list of CIDRs is a valid degenerate case.
 set, table, err := cidr.LoadASN(specReader) // membership Set + value Table[Info]
 ```
 
+## Command-line tool
+
+`cmd/cidr` is a standalone lookup tool over a spec file. Addresses come from the
+arguments, or from stdin (one per line) when none are given.
+
+```sh
+go install github.com/netstar-labs/cidr/cmd/cidr@latest
+
+cidr -spec asn.txt 1.1.1.200 8.8.8.8              # NDJSON, one object per address
+printf '1.1.1.1\n9.9.9.9\n' | cidr -spec asn.txt -brief
+cidr -spec block.txt -match < ips.txt             # filter: print only listed addresses
+```
+
+Flags: `-spec FILE` (required), `-brief` (terse aligned lines), `-match`
+(grep-like filter; exit 1 if nothing matched), `-quiet` (no stderr tally),
+`-version`. A run tally lands on stderr.
+
+Cross-compile a version-stamped static binary with [`build/cidr`](build/cidr)
+(`linux/amd64`, with an optional `scp` install to a host).
+
 ## Examples
 
 Each is a self-contained `main.go` with no dependency beyond the standard

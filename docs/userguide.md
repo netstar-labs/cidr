@@ -187,6 +187,32 @@ before `Freeze`.
 | `DecodeASN(uint64) (asn, orgID uint32, flags uint8)` | unpack it |
 | `Info`, `SpecEntry` | value and parsed-entry types |
 
+## Command-line tool
+
+`cmd/cidr` is a standalone lookup tool. It loads a spec and looks up addresses
+from the arguments, or from stdin (one per line) when none are given.
+
+```sh
+go install github.com/netstar-labs/cidr/cmd/cidr@latest
+
+cidr -spec asn.txt 1.1.1.200 8.8.8.8        # NDJSON: {"ip","member","info"?}
+cidr -spec asn.txt -brief 1.1.1.200         # "<ip> member ASNNN <org>" lines
+printf '1.1.1.1\n9.9.9.9\n' | cidr -spec asn.txt
+cidr -spec block.txt -match < ips.txt       # print only listed addresses (exit 1 if none)
+```
+
+| Flag | Effect |
+|---|---|
+| `-spec FILE` | the spec to load (required) |
+| `-brief` | terse aligned lines instead of NDJSON |
+| `-match` | filter mode: print only addresses in the set; exit 1 if none matched |
+| `-quiet` | suppress the run tally on stderr |
+| `-version` | print the stamped version and exit |
+
+A tally (`spec=… prefixes=… intervals=… queried=… member=…`) is written to
+stderr unless `-quiet`. Build a version-stamped `linux/amd64` static binary with
+`build/cidr [user@host]`.
+
 ## Worked examples
 
 Runnable integrations live in [example/](../example/README.md): a library tour,

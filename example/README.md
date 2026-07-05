@@ -88,3 +88,10 @@ printf '%s\n%s\n' \
 
 Tools: `cidr_stats`, `cidr_contains {ip}`, `cidr_lookup {ip}`,
 `cidr_lookup_batch {ips[]}`.
+
+## The command-line tool
+
+For a standalone lookup tool (not an embedding example), the front end lives at
+[`cmd/cidr`](../cmd/cidr): `cidr -spec asn.txt 1.1.1.200`, with `-brief`,
+`-match` (grep-like filter), and NDJSON output. See the
+[user guide](../docs/userguide.md#command-line-tool).

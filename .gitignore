@@ -17,6 +17,6 @@ install/
 testdata/
 dat/
 
-/cli
-# compiled cli (cli mode of build/zone)
-build/bin/
+# build outputs and deploy target for build/cidr
+build/install/
+build/host
