@@ -1,0 +1,22 @@
+# Test binary, built with `go test -c`
+*.test
+
+# Editor/IDE
+.vscode/
+.claude
+
+# MAC OSX remove from everywhere
+**/.DS_Store
+**/~*
+
+# ignore directories
+_bin/
+_dev/
+sandbox/
+install/
+testdata/
+dat/
+
+/cli
+# compiled cli (cli mode of build/zone)
+build/bin/
