@@ -113,6 +113,95 @@ set, table, err := cidr.LoadASN(r)              // Set + Table[cidr.Info] in one
 `LoadASN` builds both a membership `Set` and a value `Table[Info]` from the same
 input, so you can answer both questions.
 
+### Custom formats with `LoadFunc`
+
+`ParseSpec`/`LoadASN` are ASN-shaped. For any other `<cidr> <data...>` feed,
+`LoadFunc` builds a `Table[V]` and hands the format to you: a `parse` callback
+maps a line's whitespace fields to a prefix and value, returning `false` to skip
+the line (blank lines and `#`-comments are dropped for you).
+
+For example, a feed that maps networks to **six-digit classification codes**
+(an industry taxonomy, a threat category, a tenant id — anything), with an
+optional label after the code:
+
+```
+# <cidr> <6-digit code> [label...]
+1.1.1.0/24     518210 Data Processing & Hosting
+1.1.1.128/25   541512 Computer Systems Design      # nested, more specific
+10.0.0.0/8     999999 Private Use
+2001:db8::/32  100002 Documentation
+```
+
+```go
+type Class struct {
+    Code  int    `json:"code"`
+    Label string `json:"label"`
+}
+
+table, err := cidr.LoadFunc(r, func(f []string) (netip.Prefix, Class, bool) {
+    if len(f) < 2 {
+        return netip.Prefix{}, Class{}, false
+    }
+    p, err := cidr.ParsePrefix(f[0])
+    if err != nil {
+        return netip.Prefix{}, Class{}, false // skip a bad prefix
+    }
+    code, err := strconv.Atoi(f[1])
+    if err != nil || code < 100000 || code > 999999 {
+        return netip.Prefix{}, Class{}, false // enforce six digits
+    }
+    return p, Class{Code: code, Label: strings.Join(f[2:], " ")}, true
+})
+
+c, ok := table.Lookup(netip.MustParseAddr("1.1.1.200")) // {541512, "Computer Systems Design"}, true
+```
+
+The value is your own type, so the parse callback *is* the decoder — no
+interface to implement. Longest-prefix match still applies: `1.1.1.200` matches
+the nested `/25` (code `541512`) over the covering `/24`.
+
+### Range-based feeds with `AddRange`
+
+Some feeds give **start/end address ranges** rather than CIDRs (iptoasn.com, the
+RIR delegated files). `AddRange` takes an inclusive `[lo, hi]` interval directly:
+
+```go
+b.AddRange(lo, hi)         // *Builder — one membership interval
+tb.AddRange(lo, hi, v)     // *TableBuilder[V] — value v across the range
+```
+
+For a `Table`, the range is decomposed into its minimal set of CIDR prefixes
+(each carrying `v`) so longest-prefix match stays well defined — a more-specific
+range's pieces have longer masks and win. Reversed or mixed-family ranges are
+ignored.
+
+## Data sources
+
+Where to get data to feed the loaders. The ranking is by how directly a source
+provides *CIDR (or range) + value*:
+
+| Source | Format | Native shape | Access | Notes |
+|---|---|---|---|---|
+| **MaxMind GeoLite2 ASN** | CSV: `network,asn,org` | CIDR | free account + key | maps 1:1 to the ASN spec; separate v4/v6 files; CC BY-SA (attribution) |
+| **iptoasn.com** | TSV: `start end asn cc desc` | **range** | free, no account | easiest bulk; hourly; use `AddRange` |
+| **CAIDA / RouteViews pfx2as** | `prefix<tab>len<tab>AS` | CIDR | free/open | from the live BGP table; no org names (join AS→org separately) |
+| **IPinfo Lite / DB-IP Lite** | CSV / MMDB | CIDR / range | free w/ signup | ASN + org, CC BY |
+| **RouteViews / RIPE RIS MRT** | MRT dumps | prefixes | free/open | the raw global table; needs an MRT parser |
+| **Team Cymru IP-to-ASN** | bulk whois / DNS | range | free | best for enrichment, not bulk build |
+| **MaxMind / DB-IP GeoLite** | CSV: `network,country,...` | CIDR | free (account/CC BY) | for geo `Table`s rather than ASN |
+
+Convert MaxMind's CSV to the ASN spec (org may be quoted, so parse it as CSV):
+
+```python
+import csv, sys                      # GeoLite2-ASN-Blocks-IPv4.csv on stdin
+for row in csv.reader(sys.stdin):
+    if row and '/' in row[0]:
+        print(row[0], row[1], row[2])  # -> "1.0.0.0/24 13335 Cloudflare, Inc."
+```
+
+A range feed like iptoasn (`start end asn ... desc`) is read straight into a
+`Table` with `AddRange` and a `LoadFunc`-style parse, no CIDR conversion needed.
+
 ## Parsing prefixes and addresses
 
 - `cidr.ParsePrefix(s)` accepts a CIDR (`"10.0.0.0/8"`, `"2001:db8::/32"`) or a
@@ -160,6 +249,7 @@ before `Freeze`.
 | `NewBuilder() *Builder` | start a membership set |
 | `(*Builder) Add(netip.Prefix)` | add a prefix |
 | `(*Builder) AddPrefix(string) error` | parse and add a CIDR or bare address |
+| `(*Builder) AddRange(lo, hi netip.Addr)` | add an inclusive address range |
 | `(*Builder) Freeze() *Set` | compile to an immutable `Set` |
 | `(*Set) Contains(netip.Addr) bool` | membership test |
 | `(*Set) Len() int` | number of merged intervals |
@@ -171,6 +261,7 @@ before `Freeze`.
 | `NewTableBuilder[V]() *TableBuilder[V]` | start a value table |
 | `(*TableBuilder[V]) Add(netip.Prefix, V)` | add a prefix with a value |
 | `(*TableBuilder[V]) AddPrefix(string, V) error` | parse and add |
+| `(*TableBuilder[V]) AddRange(lo, hi netip.Addr, V)` | add a value across an address range |
 | `(*TableBuilder[V]) Freeze() *Table[V]` | compile to an immutable `Table[V]` |
 | `(*Table[V]) Lookup(netip.Addr) (V, bool)` | most-specific value + found flag |
 | `(*Table[V]) Contains(netip.Addr) bool` | membership, ignoring the value |
@@ -183,6 +274,7 @@ before `Freeze`.
 | `ParseSpec(io.Reader) ([]SpecEntry, error)` | parse a `<cidr> ASN org` stream |
 | `LoadSet(io.Reader) (*Set, error)` | spec → membership `Set` |
 | `LoadASN(io.Reader) (*Set, *Table[Info], error)` | spec → `Set` + `Table[Info]` |
+| `LoadFunc[V](io.Reader, parse) (*Table[V], error)` | any custom `<cidr> data...` feed → `Table[V]` |
 | `EncodeASN(asn, orgID uint32, flags uint8) uint64` | pack a compact value |
 | `DecodeASN(uint64) (asn, orgID uint32, flags uint8)` | unpack it |
 | `Info`, `SpecEntry` | value and parsed-entry types |

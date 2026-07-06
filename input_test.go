@@ -1,6 +1,8 @@
 package cidr
 
 import (
+	"net/netip"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -82,5 +84,54 @@ func TestLoadSet(t *testing.T) {
 	}
 	if !set.Contains(mustAddr("1.0.1.55")) {
 		t.Error("expected membership")
+	}
+}
+
+// TestLoadFuncClassification loads a "<cidr> <6-digit code> [label...]" feed
+// through LoadFunc into a Table of a custom struct value — the worked example
+// from the user guide.
+func TestLoadFuncClassification(t *testing.T) {
+	type Class struct {
+		Code  int
+		Label string
+	}
+	const feed = `
+# network classification: <cidr> <6-digit code> [label...]
+1.1.1.0/24     518210 Data Processing & Hosting
+1.1.1.128/25   541512 Computer Systems Design
+10.0.0.0/8     999999 Private Use
+BOGUS          000001 not a prefix
+1.2.3.0/24     42     too short
+`
+	table, err := LoadFunc(strings.NewReader(feed), func(f []string) (netip.Prefix, Class, bool) {
+		if len(f) < 2 {
+			return netip.Prefix{}, Class{}, false
+		}
+		p, err := ParsePrefix(f[0])
+		if err != nil {
+			return netip.Prefix{}, Class{}, false
+		}
+		code, err := strconv.Atoi(f[1])
+		if err != nil || code < 100000 || code > 999999 { // enforce six digits
+			return netip.Prefix{}, Class{}, false
+		}
+		return p, Class{Code: code, Label: strings.Join(f[2:], " ")}, true
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if c, ok := table.Lookup(mustAddr("1.1.1.200")); !ok || c.Code != 541512 { // nested /25 wins
+		t.Errorf("1.1.1.200 = %+v (ok=%v), want code 541512", c, ok)
+	}
+	if c, ok := table.Lookup(mustAddr("1.1.1.10")); !ok || c.Label != "Data Processing & Hosting" {
+		t.Errorf("1.1.1.10 = %+v (ok=%v)", c, ok)
+	}
+	if _, ok := table.Lookup(mustAddr("8.8.8.8")); ok {
+		t.Error("8.8.8.8 should miss")
+	}
+	// the malformed lines (bad prefix, short code) were skipped
+	if _, ok := table.Lookup(mustAddr("1.2.3.4")); ok {
+		t.Error("1.2.3.4 came from a rejected line and should miss")
 	}
 }

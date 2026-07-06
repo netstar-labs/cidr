@@ -35,8 +35,9 @@ No dependency beyond the Go standard library.
   compact `uint64` via `EncodeASN`/`DecodeASN`.
 - **Immutable and concurrent-safe** once built (`Builder`/`TableBuilder` →
   `Freeze`), so many goroutines can query without a lock.
-- **A spec loader** — `LoadASN` / `LoadSet` read a `<cidr> <ASN> <org>` text
-  stream directly into a queryable structure.
+- **Loaders for any feed** — `LoadASN`/`LoadSet` read a `<cidr> <ASN> <org>`
+  stream; `LoadFunc` takes any custom `<cidr> data...` format; `AddRange`
+  ingests start/end address ranges (iptoasn, RIR delegated files) directly.
 
 ## Quick start
 
@@ -89,6 +90,11 @@ list of CIDRs is a valid degenerate case.
 ```go
 set, table, err := cidr.LoadASN(specReader) // membership Set + value Table[Info]
 ```
+
+For non-ASN feeds, `LoadFunc` builds a `Table[V]` of any value type from a
+per-line parse callback, and `AddRange` ingests start/end ranges. Where to pull
+real ASN/geo data (MaxMind, iptoasn, CAIDA, …) and how to convert it is in the
+[user guide](docs/userguide.md#data-sources).
 
 ## Command-line tool
 

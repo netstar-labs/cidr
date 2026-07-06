@@ -98,6 +98,32 @@ func LoadSet(r io.Reader) (*Set, error) {
 	return b.Freeze(), nil
 }
 
+// LoadFunc reads a line-oriented stream and builds a Table[V], delegating the
+// format to the caller: parse maps a line's whitespace-separated fields to a
+// prefix and value, returning ok=false to skip the line. Blank lines and
+// '#'-comments are dropped before parse is called. This is the generic loader
+// for any "<cidr-or-prefix> <data...>" feed whose value is not an ASN — see the
+// user guide for a worked example.
+func LoadFunc[V any](r io.Reader, parse func(fields []string) (netip.Prefix, V, bool)) (*Table[V], error) {
+	tb := NewTableBuilder[V]()
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || line[0] == '#' {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		if p, v, ok := parse(fields); ok {
+			tb.Add(p, v)
+		}
+	}
+	return tb.Freeze(), sc.Err()
+}
+
 // LoadASN reads a spec from r and compiles both a membership Set (yes/no) and an
 // LPM value Table[Info] (yes+data). One pass builds both, so a caller can answer
 // "is this address listed?" and "which AS/org owns it?" from the same input.
