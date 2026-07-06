@@ -1,13 +1,13 @@
-// Command dbip converts a DB-IP Lite database (db-ip.com, CC BY 4.0) to the
+// Command mm-dbip converts a DB-IP Lite database (db-ip.com, CC BY 4.0) to the
 // cidr spec format. DB-IP Lite CSVs are range-based (start,end,...), so each
 // range is decomposed into its minimal set of CIDR prefixes.
 //
 //	-db country -> "<cidr> <country>"      (default; load with LoadFunc)
 //	-db asn     -> "<cidr> <ASN> <org>"    (load with LoadASN)
 //
-//	dbip -o dbip-country.cidr                       # current month's country lite
-//	dbip -db asn -o dbip-asn.cidr
-//	dbip -in dbip-country-lite-2025-07.csv.gz       # convert a local file
+//	mm-dbip -o dbip-country.cidr                       # current month's country lite
+//	mm-dbip -db asn -o dbip-asn.cidr
+//	mm-dbip -in dbip-country-lite-2025-07.csv.gz       # convert a local file
 //
 // Without -in or -url the current month's file is fetched from
 // https://download.db-ip.com/free/dbip-<db>-lite-<YYYY-MM>.csv.gz.
@@ -33,7 +33,14 @@ import (
 
 const source = "https://download.db-ip.com/free/dbip-%s-lite-%s.csv.gz"
 
+// Version and Revision are stamped at build time via -ldflags -X (see build/mm-dbip).
+var (
+	Version  = "dev"
+	Revision = "unknown"
+)
+
 func main() {
+	version := flag.Bool("version", false, "print version and exit")
 	db := flag.String("db", "country", `dataset: "country" or "asn"`)
 	month := flag.String("month", "", "dataset month YYYY-MM (default: current UTC month)")
 	url := flag.String("url", "", "override the download URL")
@@ -42,12 +49,16 @@ func main() {
 	timeout := flag.Duration("timeout", 30*time.Second, "dial/response-header timeout")
 	flag.Parse()
 
+	if *version {
+		fmt.Printf("mm-dbip %s (%s)\n", Version, Revision)
+		return
+	}
 	if *db != "country" && *db != "asn" {
-		fmt.Fprintln(os.Stderr, `dbip: -db must be "country" or "asn"`)
+		fmt.Fprintln(os.Stderr, `mm-dbip: -db must be "country" or "asn"`)
 		os.Exit(2)
 	}
 	if err := run(*db, *month, *url, *in, *out, *timeout); err != nil {
-		fmt.Fprintln(os.Stderr, "dbip:", err)
+		fmt.Fprintln(os.Stderr, "mm-dbip:", err)
 		os.Exit(1)
 	}
 }
@@ -88,7 +99,7 @@ func run(db, month, url, in, out string, timeout time.Duration) error {
 	if out != "" {
 		dst = out
 	}
-	fmt.Fprintf(os.Stderr, "dbip: db=%s rows=%d prefixes=%d malformed=%d -> %s\n",
+	fmt.Fprintf(os.Stderr, "mm-dbip: db=%s rows=%d prefixes=%d malformed=%d -> %s\n",
 		db, st.rows, st.prefixes, st.malformed, dst)
 	return nil
 }
@@ -187,7 +198,7 @@ func fetch(url string, timeout time.Duration) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "dbip-cidr (+github.com/netstar-labs/cidr)")
+	req.Header.Set("User-Agent", "mm-dbip-cidr (+github.com/netstar-labs/cidr)")
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

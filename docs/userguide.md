@@ -182,10 +182,10 @@ provides *CIDR (or range) + value*:
 
 | Source | Format | Native shape | Access | Notes |
 |---|---|---|---|---|
-| **MaxMind GeoLite2 ASN** | CSV: `network,asn,org` | CIDR | free account + key | 1:1 with the ASN spec; separate v4/v6; CC BY-SA — `cmd/geolite2-asn` |
+| **MaxMind GeoLite2 ASN** | CSV: `network,asn,org` | CIDR | free account + key | 1:1 with the ASN spec; separate v4/v6; CC BY-SA — `cmd/mm-geolite2-asn` |
 | **iptoasn.com** | TSV: `start end asn cc desc` | **range** | free, no account | easiest bulk; hourly — `cmd/iptoasn` |
 | **CAIDA / RouteViews pfx2as** | `prefix<tab>len<tab>AS` | CIDR | free/open | from the live BGP table; no org names (join AS→org separately) |
-| **DB-IP Lite** | CSV: `start,end,...` | **range** | free, CC BY | country or ASN datasets — `cmd/dbip` |
+| **DB-IP Lite** | CSV: `start,end,...` | **range** | free, CC BY | country or ASN datasets — `cmd/mm-dbip` |
 | **RouteViews / RIPE RIS MRT** | MRT dumps | prefixes | free/open | the raw global table; needs an MRT parser |
 | **Team Cymru IP-to-ASN** | bulk whois / DNS | range | free | best for enrichment, not bulk build |
 | **MaxMind / DB-IP GeoLite** | CSV: `network,country,...` | CIDR | free (account/CC BY) | for geo `Table`s rather than ASN |
@@ -209,29 +209,52 @@ iptoasn -in ip2asn-combined.tsv.gz       # convert a local (gzipped) TSV
 Flags: `-family`, `-url`, `-in`, `-o`, `-unrouted` (keep AS0 rows), `-country`
 (prepend the country code). AS0 "Not routed" rows are dropped by default.
 
-**[`cmd/geolite2-asn`](../cmd/geolite2-asn)** — MaxMind GeoLite2 ASN (needs a
+**[`cmd/mm-geolite2-asn`](../cmd/mm-geolite2-asn)** — MaxMind GeoLite2 ASN (needs a
 free license key); CIDR-native → `<cidr> <ASN> <org>` (`LoadASN`):
 
 ```sh
-geolite2-asn -license YOUR_KEY -o geolite2-asn.cidr   # download the CSV zip
-geolite2-asn -in GeoLite2-ASN-CSV.zip                 # or a local zip/.csv/.csv.gz
+mm-geolite2-asn -license YOUR_KEY -o geolite2-asn.cidr   # download the CSV zip
+mm-geolite2-asn -in GeoLite2-ASN-CSV.zip                 # or a local zip/.csv/.csv.gz
 ```
 
 Flags: `-license`, `-family` (`v4`/`v6`/`both`), `-url`, `-in`, `-o`. The
 download is the GeoLite2-ASN-CSV zip; the blocks CSVs are already CIDR-native.
 
-**[`cmd/dbip`](../cmd/dbip)** — DB-IP Lite (free, CC BY); range-based. `-db
+**[`cmd/mm-dbip`](../cmd/mm-dbip)** — DB-IP Lite (free, CC BY); range-based. `-db
 country` → `<cidr> <country>` (load with `LoadFunc`); `-db asn` → `<cidr> <ASN>
 <org>` (`LoadASN`):
 
 ```sh
-dbip -db country -o dbip-country.cidr    # current month's country lite
-dbip -db asn    -o dbip-asn.cidr
-dbip -in dbip-country-lite-2026-07.csv.gz
+mm-dbip -db country -o dbip-country.cidr    # current month's country lite
+mm-dbip -db asn    -o dbip-asn.cidr
+mm-dbip -in dbip-country-lite-2026-07.csv.gz
 ```
 
 Flags: `-db` (`country`/`asn`), `-month` (default: current UTC month), `-url`,
 `-in`, `-o`. Without `-in`/`-url` the current month's file is fetched.
+
+### Scheduled generation (systemd)
+
+Each generator has a build script under [`build/`](../build) that cross-compiles
+a version-stamped `linux/amd64` binary and, in `--generator` mode, installs a
+oneshot systemd service plus a timer that regenerates the spec into
+`/var/lib/cidr/` on a schedule (iptoasn daily, DB-IP monthly, MaxMind weekly):
+
+```sh
+build/iptoasn --generator user@host                       # daily -> ip2asn.cidr
+build/mm-dbip --generator user@host                       # monthly -> dbip-country.cidr
+build/mm-geolite2-asn --generator --key YOUR_KEY user@host # weekly -> geolite2-asn.cidr
+```
+
+`--cli` (the default) builds just the binary — nothing is scheduled. With no
+host the install package is left under `build/install/` to copy and run
+(`sudo ./<tool>.sh`) yourself.
+
+For `mm-geolite2-asn`, `--generator` **requires `--key`** (MaxMind downloads are
+authenticated) and refuses to build without one. The key is written to a
+mode-600 `EnvironmentFile` (`/etc/cidr/mm-geolite2-asn.env`) that the service
+reads as `$MAXMIND_LICENSE_KEY`; it never appears in the unit file or the process
+arguments.
 
 ## Parsing prefixes and addresses
 

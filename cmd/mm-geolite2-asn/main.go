@@ -1,11 +1,11 @@
-// Command geolite2-asn converts the MaxMind GeoLite2 ASN database to the cidr
+// Command mm-geolite2-asn converts the MaxMind GeoLite2 ASN database to the cidr
 // spec format — "<cidr> <ASN> <org>" per line — that LoadASN reads back. The
 // GeoLite2-ASN CSV is already CIDR-native (a "network" column), so no range
 // decomposition is needed.
 //
-//	geolite2-asn -license YOUR_KEY -o geolite2-asn.cidr   # download + convert
-//	geolite2-asn -in GeoLite2-ASN-CSV.zip                 # convert a local zip
-//	geolite2-asn -in GeoLite2-ASN-Blocks-IPv4.csv         # or a single CSV (.csv/.csv.gz)
+//	mm-geolite2-asn -license YOUR_KEY -o geolite2-asn.cidr   # download + convert
+//	mm-geolite2-asn -in GeoLite2-ASN-CSV.zip                 # convert a local zip
+//	mm-geolite2-asn -in GeoLite2-ASN-Blocks-IPv4.csv         # or a single CSV (.csv/.csv.gz)
 //
 // Downloading needs a free MaxMind account's license key. The download is a zip
 // holding GeoLite2-ASN-Blocks-IPv4.csv and -IPv6.csv, both with the header
@@ -33,8 +33,16 @@ import (
 
 const downloadURL = "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN-CSV&license_key=%s&suffix=zip"
 
+// Version and Revision are stamped at build time via -ldflags -X (see
+// build/mm-geolite2-asn).
+var (
+	Version  = "dev"
+	Revision = "unknown"
+)
+
 func main() {
-	license := flag.String("license", "", "MaxMind license key (to download)")
+	version := flag.Bool("version", false, "print version and exit")
+	license := flag.String("license", "", "MaxMind license key (or $MAXMIND_LICENSE_KEY)")
 	family := flag.String("family", "both", `which blocks to emit: "v4", "v6", or "both"`)
 	url := flag.String("url", "", "override the download URL")
 	in := flag.String("in", "", "local GeoLite2-ASN CSV (.csv/.csv.gz) or the CSV zip")
@@ -42,8 +50,18 @@ func main() {
 	timeout := flag.Duration("timeout", 30*time.Second, "dial/response-header timeout for the download")
 	flag.Parse()
 
+	if *version {
+		fmt.Printf("mm-geolite2-asn %s (%s)\n", Version, Revision)
+		return
+	}
+	// The license may come from the environment so systemd can supply it via a
+	// mode-600 EnvironmentFile instead of exposing it on the command line.
+	if *license == "" {
+		*license = os.Getenv("MAXMIND_LICENSE_KEY")
+	}
+
 	if err := run(*license, *family, *url, *in, *out, *timeout); err != nil {
-		fmt.Fprintln(os.Stderr, "geolite2-asn:", err)
+		fmt.Fprintln(os.Stderr, "mm-geolite2-asn:", err)
 		os.Exit(1)
 	}
 }
@@ -97,7 +115,7 @@ func run(license, family, url, in, out string, timeout time.Duration) error {
 	if out != "" {
 		dst = out
 	}
-	fmt.Fprintf(os.Stderr, "geolite2-asn: prefixes=%d skipped=%d -> %s\n", st.rows, st.malformed, dst)
+	fmt.Fprintf(os.Stderr, "mm-geolite2-asn: prefixes=%d skipped=%d -> %s\n", st.rows, st.malformed, dst)
 	return nil
 }
 
@@ -211,7 +229,7 @@ func fetchBytes(url string, timeout time.Duration) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "geolite2-asn-cidr (+github.com/netstar-labs/cidr)")
+	req.Header.Set("User-Agent", "mm-geolite2-asn-cidr (+github.com/netstar-labs/cidr)")
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

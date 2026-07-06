@@ -31,7 +31,14 @@ import (
 
 const source = "https://iptoasn.com/data/ip2asn-%s.tsv.gz"
 
+// Version and Revision are stamped at build time via -ldflags -X (see build/iptoasn).
+var (
+	Version  = "dev"
+	Revision = "unknown"
+)
+
 func main() {
+	version := flag.Bool("version", false, "print version and exit")
 	family := flag.String("family", "combined", `iptoasn dataset: "v4", "v6", or "combined"`)
 	url := flag.String("url", "", "source URL (overrides -family)")
 	in := flag.String("in", "", "read a local TSV (optionally .gz) instead of fetching")
@@ -40,6 +47,11 @@ func main() {
 	country := flag.Bool("country", false, "prepend the country code to the org field")
 	timeout := flag.Duration("timeout", 30*time.Second, "dial/response-header timeout for the fetch")
 	flag.Parse()
+
+	if *version {
+		fmt.Printf("iptoasn %s (%s)\n", Version, Revision)
+		return
+	}
 
 	opts := options{unrouted: *unrouted, country: *country}
 	if err := run(*family, *url, *in, *out, *timeout, opts); err != nil {
