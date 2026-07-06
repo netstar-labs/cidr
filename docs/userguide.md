@@ -202,6 +202,23 @@ for row in csv.reader(sys.stdin):
 A range feed like iptoasn (`start end asn ... desc`) is read straight into a
 `Table` with `AddRange` and a `LoadFunc`-style parse, no CIDR conversion needed.
 
+### Fetching iptoasn with `cmd/iptoasn`
+
+The bundled [`cmd/iptoasn`](../cmd/iptoasn) tool does the fetch and conversion
+for you: it downloads the iptoasn.com table, decomposes each start/end range to
+CIDRs (via `RangePrefixes`), and writes the `<cidr> <ASN> <org>` spec that
+`LoadASN` reads back.
+
+```sh
+iptoasn -family v4 -o ip2asn-v4.cidr     # fetch IPv4 -> spec file
+iptoasn -in ip2asn-combined.tsv.gz       # convert a local (gzipped) TSV
+iptoasn | cidr -spec /dev/stdin 8.8.8.8  # or pipe straight into the CLI
+```
+
+Flags: `-family` (`v4`/`v6`/`combined`), `-url`, `-in`, `-o`, `-unrouted`
+(keep AS0 rows), `-country` (prepend the country code). AS0 "Not routed" rows
+are dropped by default.
+
 ## Parsing prefixes and addresses
 
 - `cidr.ParsePrefix(s)` accepts a CIDR (`"10.0.0.0/8"`, `"2001:db8::/32"`) or a
@@ -271,6 +288,7 @@ before `Freeze`.
 | Symbol | Purpose |
 |---|---|
 | `ParsePrefix(string) (netip.Prefix, error)` | parse a CIDR or bare address |
+| `RangePrefixes(lo, hi netip.Addr) []netip.Prefix` | decompose a range into its minimal CIDR set |
 | `ParseSpec(io.Reader) ([]SpecEntry, error)` | parse a `<cidr> ASN org` stream |
 | `LoadSet(io.Reader) (*Set, error)` | spec → membership `Set` |
 | `LoadASN(io.Reader) (*Set, *Table[Info], error)` | spec → `Set` + `Table[Info]` |

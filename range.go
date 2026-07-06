@@ -28,7 +28,7 @@ func (b *Builder) AddRange(lo, hi netip.Addr) {
 // longest-prefix match stays well defined: a more-specific range's pieces have
 // longer masks and win over a covering one. An invalid range is ignored.
 func (b *TableBuilder[V]) AddRange(lo, hi netip.Addr, v V) {
-	for _, p := range rangePrefixes(lo, hi) {
+	for _, p := range RangePrefixes(lo, hi) {
 		b.Add(p, v)
 	}
 }
@@ -37,10 +37,10 @@ func validRange(lo, hi netip.Addr) bool {
 	return lo.IsValid() && hi.IsValid() && lo.Is4() == hi.Is4() && !hi.Less(lo)
 }
 
-// rangePrefixes decomposes the inclusive interval [lo, hi] into the minimal,
+// RangePrefixes decomposes the inclusive interval [lo, hi] into the minimal,
 // ordered set of CIDR prefixes that exactly cover it (the standard range-to-CIDR
-// split). Returns nil for an invalid range.
-func rangePrefixes(lo, hi netip.Addr) []netip.Prefix {
+// split). It returns nil for an invalid range: mismatched families or hi < lo.
+func RangePrefixes(lo, hi netip.Addr) []netip.Prefix {
 	lo, hi = lo.Unmap(), hi.Unmap()
 	if !validRange(lo, hi) {
 		return nil

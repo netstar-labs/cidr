@@ -47,7 +47,7 @@ func TestRangePrefixes(t *testing.T) {
 	}
 	for _, c := range cases {
 		lo, hi := netip.MustParseAddr(c.lo), netip.MustParseAddr(c.hi)
-		ps := rangePrefixes(lo, hi)
+		ps := RangePrefixes(lo, hi)
 		checkCover(t, lo, hi, ps)
 		if c.n > 0 && len(ps) != c.n {
 			t.Errorf("%s-%s: got %d pieces, want %d (%v)", c.lo, c.hi, len(ps), c.n, ps)
@@ -65,7 +65,7 @@ func TestRangePrefixesRandom(t *testing.T) {
 		}
 		lo := netip.AddrFrom4([4]byte{byte(a >> 24), byte(a >> 16), byte(a >> 8), byte(a)})
 		hi := netip.AddrFrom4([4]byte{byte(b >> 24), byte(b >> 16), byte(b >> 8), byte(b)})
-		checkCover(t, lo, hi, rangePrefixes(lo, hi))
+		checkCover(t, lo, hi, RangePrefixes(lo, hi))
 	}
 }
 
