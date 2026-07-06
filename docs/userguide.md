@@ -182,42 +182,56 @@ provides *CIDR (or range) + value*:
 
 | Source | Format | Native shape | Access | Notes |
 |---|---|---|---|---|
-| **MaxMind GeoLite2 ASN** | CSV: `network,asn,org` | CIDR | free account + key | maps 1:1 to the ASN spec; separate v4/v6 files; CC BY-SA (attribution) |
-| **iptoasn.com** | TSV: `start end asn cc desc` | **range** | free, no account | easiest bulk; hourly; use `AddRange` |
+| **MaxMind GeoLite2 ASN** | CSV: `network,asn,org` | CIDR | free account + key | 1:1 with the ASN spec; separate v4/v6; CC BY-SA — `cmd/geolite2-asn` |
+| **iptoasn.com** | TSV: `start end asn cc desc` | **range** | free, no account | easiest bulk; hourly — `cmd/iptoasn` |
 | **CAIDA / RouteViews pfx2as** | `prefix<tab>len<tab>AS` | CIDR | free/open | from the live BGP table; no org names (join AS→org separately) |
-| **IPinfo Lite / DB-IP Lite** | CSV / MMDB | CIDR / range | free w/ signup | ASN + org, CC BY |
+| **DB-IP Lite** | CSV: `start,end,...` | **range** | free, CC BY | country or ASN datasets — `cmd/dbip` |
 | **RouteViews / RIPE RIS MRT** | MRT dumps | prefixes | free/open | the raw global table; needs an MRT parser |
 | **Team Cymru IP-to-ASN** | bulk whois / DNS | range | free | best for enrichment, not bulk build |
 | **MaxMind / DB-IP GeoLite** | CSV: `network,country,...` | CIDR | free (account/CC BY) | for geo `Table`s rather than ASN |
 
-Convert MaxMind's CSV to the ASN spec (org may be quoted, so parse it as CSV):
+### Fetch/convert tools
 
-```python
-import csv, sys                      # GeoLite2-ASN-Blocks-IPv4.csv on stdin
-for row in csv.reader(sys.stdin):
-    if row and '/' in row[0]:
-        print(row[0], row[1], row[2])  # -> "1.0.0.0/24 13335 Cloudflare, Inc."
-```
+Three tools under [`cmd/`](../cmd) fetch a provider's table and write the cidr
+spec directly: range-based sources are decomposed to CIDRs (via
+`RangePrefixes`), CIDR-native sources pass through. Each also reads a local file
+with `-in` (gzip auto-detected) and writes to stdout or `-o FILE`, with a tally
+on stderr.
 
-A range feed like iptoasn (`start end asn ... desc`) is read straight into a
-`Table` with `AddRange` and a `LoadFunc`-style parse, no CIDR conversion needed.
-
-### Fetching iptoasn with `cmd/iptoasn`
-
-The bundled [`cmd/iptoasn`](../cmd/iptoasn) tool does the fetch and conversion
-for you: it downloads the iptoasn.com table, decomposes each start/end range to
-CIDRs (via `RangePrefixes`), and writes the `<cidr> <ASN> <org>` spec that
-`LoadASN` reads back.
+**[`cmd/iptoasn`](../cmd/iptoasn)** — iptoasn.com IP-to-ASN (free, no account);
+range-based → `<cidr> <ASN> <org>` (`LoadASN`):
 
 ```sh
-iptoasn -family v4 -o ip2asn-v4.cidr     # fetch IPv4 -> spec file
+iptoasn -family v4 -o ip2asn-v4.cidr     # v4 | v6 | combined
 iptoasn -in ip2asn-combined.tsv.gz       # convert a local (gzipped) TSV
-iptoasn | cidr -spec /dev/stdin 8.8.8.8  # or pipe straight into the CLI
 ```
 
-Flags: `-family` (`v4`/`v6`/`combined`), `-url`, `-in`, `-o`, `-unrouted`
-(keep AS0 rows), `-country` (prepend the country code). AS0 "Not routed" rows
-are dropped by default.
+Flags: `-family`, `-url`, `-in`, `-o`, `-unrouted` (keep AS0 rows), `-country`
+(prepend the country code). AS0 "Not routed" rows are dropped by default.
+
+**[`cmd/geolite2-asn`](../cmd/geolite2-asn)** — MaxMind GeoLite2 ASN (needs a
+free license key); CIDR-native → `<cidr> <ASN> <org>` (`LoadASN`):
+
+```sh
+geolite2-asn -license YOUR_KEY -o geolite2-asn.cidr   # download the CSV zip
+geolite2-asn -in GeoLite2-ASN-CSV.zip                 # or a local zip/.csv/.csv.gz
+```
+
+Flags: `-license`, `-family` (`v4`/`v6`/`both`), `-url`, `-in`, `-o`. The
+download is the GeoLite2-ASN-CSV zip; the blocks CSVs are already CIDR-native.
+
+**[`cmd/dbip`](../cmd/dbip)** — DB-IP Lite (free, CC BY); range-based. `-db
+country` → `<cidr> <country>` (load with `LoadFunc`); `-db asn` → `<cidr> <ASN>
+<org>` (`LoadASN`):
+
+```sh
+dbip -db country -o dbip-country.cidr    # current month's country lite
+dbip -db asn    -o dbip-asn.cidr
+dbip -in dbip-country-lite-2026-07.csv.gz
+```
+
+Flags: `-db` (`country`/`asn`), `-month` (default: current UTC month), `-url`,
+`-in`, `-o`. Without `-in`/`-url` the current month's file is fetched.
 
 ## Parsing prefixes and addresses
 
