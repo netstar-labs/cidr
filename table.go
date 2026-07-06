@@ -193,13 +193,6 @@ func (t *Table[V]) Lookup(a netip.Addr) (V, bool) {
 	return t.vals[vi], true
 }
 
-// Contains reports whether any prefix covers a, ignoring the value. Equivalent
-// to the ok result of Lookup; use a Set instead if you never need the value.
-func (t *Table[V]) Contains(a netip.Addr) bool {
-	_, ok := t.Lookup(a)
-	return ok
-}
-
 // EncodeASN packs an autonomous-system answer into a uint64:
 //
 //	bits [31:0]  ASN            full 4-byte ASN space

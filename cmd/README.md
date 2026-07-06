@@ -41,8 +41,8 @@ ipfold -4 < ips.txt              # IPv4 output only
 ```
 
 Built for scale: IPv4 aggregates through a 2³²-bit bitmap (bounded ~512 MiB,
-O(n), duplicate-robust) and parses straight from bytes — 100M+ addresses fold in
-seconds. The output is a valid spec for `cidr -spec`.
+O(n), duplicate-robust) and parses straight from bytes — ~120M addresses fold in
+roughly 20 s at ~0.5 GiB. The output is a valid spec for `cidr -spec`.
 
 ## Data generators (fetch + convert)
 

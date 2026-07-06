@@ -271,8 +271,9 @@ ipfold -4 < ips.txt              # IPv4 output only
 
 It is built for scale: the IPv4 side parses addresses straight from bytes and
 aggregates through a 2³²-bit bitmap (bounded ~512 MiB, O(n), robust to duplicate
-input), folding 100M+ addresses in seconds. Build a stamped binary with
-`build/ipfold [user@host]`. The output is a valid spec for `LoadSet`.
+input) — ~120M addresses fold to CIDRs in roughly 20 s at ~0.5 GiB. Build a
+stamped binary with `build/ipfold [user@host]`. The output is a valid spec for
+`LoadSet`.
 
 ## Parsing prefixes and addresses
 
@@ -336,7 +337,6 @@ before `Freeze`.
 | `(*TableBuilder[V]) AddRange(lo, hi netip.Addr, V)` | add a value across an address range |
 | `(*TableBuilder[V]) Freeze() *Table[V]` | compile to an immutable `Table[V]` |
 | `(*Table[V]) Lookup(netip.Addr) (V, bool)` | most-specific value + found flag |
-| `(*Table[V]) Contains(netip.Addr) bool` | membership, ignoring the value |
 
 ### Spec + helpers
 
@@ -344,6 +344,7 @@ before `Freeze`.
 |---|---|
 | `ParsePrefix(string) (netip.Prefix, error)` | parse a CIDR or bare address |
 | `RangePrefixes(lo, hi netip.Addr) []netip.Prefix` | decompose a range into its minimal CIDR set |
+| `AppendRangePrefixes(dst, lo, hi) []netip.Prefix` | RangePrefixes into a reused buffer (hot loops) |
 | `ParseSpec(io.Reader) ([]SpecEntry, error)` | parse a `<cidr> ASN org` stream |
 | `LoadSet(io.Reader) (*Set, error)` | spec → membership `Set` |
 | `LoadASN(io.Reader) (*Set, *Table[Info], error)` | spec → `Set` + `Table[Info]` |
