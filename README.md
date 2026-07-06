@@ -116,6 +116,18 @@ Flags: `-spec FILE` (required), `-brief` (terse aligned lines), `-match`
 Cross-compile a version-stamped static binary with [`build/cidr`](build/cidr)
 (`linux/amd64`, with an optional `scp` install to a host).
 
+### More tools
+
+[`cmd/`](cmd) ships four more programs — see the [cmd README](cmd/README.md):
+
+- **[`ipfold`](cmd/ipfold)** — fold an unorganized IP list into the minimal CIDR
+  set (`10.0.0.12`, `.13`, `.14`, `.15` → `10.0.0.12/30`); built for 100M+
+  addresses (`ipfold < ips.txt`).
+- **[`iptoasn`](cmd/iptoasn)**, **[`mm-geolite2-asn`](cmd/mm-geolite2-asn)**,
+  **[`mm-dbip`](cmd/mm-dbip)** — fetch a provider's IP-to-ASN/geo table and
+  write the cidr spec, with an optional systemd generator (see
+  [data sources](docs/userguide.md#data-sources)).
+
 ## Examples
 
 Each is a self-contained `main.go` with no dependency beyond the standard
