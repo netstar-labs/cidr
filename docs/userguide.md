@@ -256,6 +256,24 @@ mode-600 `EnvironmentFile` (`/etc/cidr/mm-geolite2-asn.env`) that the service
 reads as `$MAXMIND_LICENSE_KEY`; it never appears in the unit file or the process
 arguments.
 
+### Folding an address list (`cmd/ipfold`)
+
+[`cmd/ipfold`](../cmd/ipfold) is a utility that turns an unorganized list of IP
+addresses (mixed IPv4/IPv6, one per line) into the minimal CIDR set: it sorts,
+de-duplicates, and folds runs of consecutive addresses — `10.0.0.12`, `.13`,
+`.14`, `.15` collapse to `10.0.0.12/30`.
+
+```sh
+ipfold < ips.txt                 # fold stdin -> stdout (v4 block, then v6)
+ipfold -in ips.txt -o cidrs.txt
+ipfold -4 < ips.txt              # IPv4 output only
+```
+
+It is built for scale: the IPv4 side parses addresses straight from bytes and
+aggregates through a 2³²-bit bitmap (bounded ~512 MiB, O(n), robust to duplicate
+input), folding 100M+ addresses in seconds. Build a stamped binary with
+`build/ipfold [user@host]`. The output is a valid spec for `LoadSet`.
+
 ## Parsing prefixes and addresses
 
 - `cidr.ParsePrefix(s)` accepts a CIDR (`"10.0.0.0/8"`, `"2001:db8::/32"`) or a

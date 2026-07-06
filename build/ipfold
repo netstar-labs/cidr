@@ -1,0 +1,50 @@
+#! /bin/sh
+# build/ipfold — cross-compile the ipfold CLI (linux/amd64) with the version and
+# revision stamped into cmd/ipfold's main.Version / main.Revision (shown by
+# `ipfold -version`), then optionally scp it to a host and install it.
+#
+#   build/ipfold [user@host]
+#
+# With no host argument the binary is left under build/install/. A host can
+# also come from the build/host file. An unstamped build (plain go build)
+# reports "dev unknown".
+
+BINARY=ipfold
+SERVER=$1
+if [ -z "$SERVER" ]; then
+    SERVERFILE=build/host
+    if [ -e "$SERVERFILE" ]; then
+        SERVER=$(cat "$SERVERFILE")
+    fi
+fi
+
+BUILD=$PWD/build
+INSTALL=$BUILD/install
+
+rm -rf "$INSTALL"
+mkdir -p "$INSTALL"
+
+echo "======== ipfold ========"
+VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
+REVISION="$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+echo "VERSION $VERSION $REVISION"
+
+# build with the stamp; cmd/ipfold declares main.Version and main.Revision for
+# exactly this -X injection
+echo "BUILD $BINARY"
+GOWORK=off GOOS=linux GOARCH=amd64 go build -trimpath \
+  -ldflags "-X 'main.Version=$VERSION' -X 'main.Revision=$REVISION'" \
+  -o "$INSTALL/$BINARY" ./cmd/$BINARY
+
+if [ -n "$SERVER" ]; then
+    echo "TRANSMIT to $SERVER"
+    scp "$INSTALL/$BINARY" "$SERVER":
+
+    echo "RUN $SERVER"
+    ssh "$SERVER" "sudo mv $BINARY /usr/local/bin"
+
+    echo "CLEANUP"
+    rm -rf "$INSTALL"
+fi
+
+echo "bye"

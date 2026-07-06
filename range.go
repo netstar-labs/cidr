@@ -41,9 +41,17 @@ func validRange(lo, hi netip.Addr) bool {
 // ordered set of CIDR prefixes that exactly cover it (the standard range-to-CIDR
 // split). It returns nil for an invalid range: mismatched families or hi < lo.
 func RangePrefixes(lo, hi netip.Addr) []netip.Prefix {
+	return AppendRangePrefixes(nil, lo, hi)
+}
+
+// AppendRangePrefixes appends the minimal CIDR cover of [lo, hi] to dst and
+// returns the extended slice, reusing dst's capacity. Use it in hot loops
+// (folding millions of ranges) to avoid a fresh allocation per call;
+// RangePrefixes is the dst==nil convenience wrapper.
+func AppendRangePrefixes(dst []netip.Prefix, lo, hi netip.Addr) []netip.Prefix {
 	lo, hi = lo.Unmap(), hi.Unmap()
 	if !validRange(lo, hi) {
-		return nil
+		return dst
 	}
 	v4 := lo.Is4()
 	width := 128
@@ -55,7 +63,6 @@ func RangePrefixes(lo, hi netip.Addr) []netip.Prefix {
 	}
 	full := lowMask(width) // all-ones for the family
 
-	var out []netip.Prefix
 	for {
 		// Largest block by alignment: a has this many trailing zero bits.
 		alignK := a.trailingZeros()
@@ -77,7 +84,7 @@ func RangePrefixes(lo, hi netip.Addr) []netip.Prefix {
 		if !v4 {
 			base = a.to16()
 		}
-		out = append(out, netip.PrefixFrom(base, width-k))
+		dst = append(dst, netip.PrefixFrom(base, width-k))
 
 		// blockLast = a + 2^k - 1, computed as a | (low-k-bits) to avoid overflow.
 		blockLast := a.or(lowMask(k))
@@ -86,7 +93,7 @@ func RangePrefixes(lo, hi netip.Addr) []netip.Prefix {
 		}
 		a = blockLast.add(u128{0, 1})
 	}
-	return out
+	return dst
 }
 
 // u128 is a minimal unsigned 128-bit integer for range arithmetic. IPv4
