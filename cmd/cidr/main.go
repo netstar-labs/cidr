@@ -40,7 +40,7 @@ type result struct {
 }
 
 func main() {
-	spec := flag.String("spec", "", "spec file: \"<cidr> [ASN] [org]\" per line (required)")
+	spec := flag.String("spec", "", "spec file: \"<cidr> [ASN] [org]\" per line, or a refs JSON envelope (required)")
 	brief := flag.Bool("brief", false, "terse output instead of NDJSON")
 	match := flag.Bool("match", false, "filter mode: print only addresses in the set (exit 1 if none)")
 	quiet := flag.Bool("quiet", false, "suppress the stderr tally")
@@ -124,13 +124,34 @@ func main() {
 	}
 }
 
+// loadSpec reads either a text spec ("<cidr> [ASN] [org]" per line) or a refs
+// JSON envelope ({"name","version","list":[...]}), picked by sniffing the first
+// non-space byte.
 func loadSpec(path string) ([]cidr.SpecEntry, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return cidr.ParseSpec(f)
+	br := bufio.NewReader(f)
+	head, _ := br.Peek(512) // best-effort; short files return io.EOF with the bytes
+	if firstNonSpace(head) == '{' {
+		rf, err := cidr.ParseRefs(br)
+		if err != nil {
+			return nil, err
+		}
+		return rf.Entries(), nil
+	}
+	return cidr.ParseSpec(br)
+}
+
+func firstNonSpace(b []byte) byte {
+	for _, c := range b {
+		if c != ' ' && c != '\t' && c != '\n' && c != '\r' {
+			return c
+		}
+	}
+	return 0
 }
 
 func build(entries []cidr.SpecEntry) (*cidr.Set, *cidr.Table[cidr.Info]) {

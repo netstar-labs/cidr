@@ -2,6 +2,7 @@ package cidr
 
 import (
 	"bufio"
+	"encoding/json"
 	"io"
 	"net/netip"
 	"strconv"
@@ -48,27 +49,36 @@ func ParseSpec(r io.Reader) ([]SpecEntry, error) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || line[0] == '#' {
-			continue
+		if e, ok := parseSpecLine(sc.Text()); ok {
+			out = append(out, e)
 		}
-		fields := strings.Fields(line)
-		p, err := ParsePrefix(fields[0])
-		if err != nil {
-			continue
-		}
-		e := SpecEntry{Prefix: p}
-		if len(fields) > 1 {
-			if asn, ok := parseASN(fields[1]); ok {
-				e.ASN = asn
-				e.Org = strings.Join(fields[2:], " ")
-			} else {
-				e.Org = strings.Join(fields[1:], " ")
-			}
-		}
-		out = append(out, e)
 	}
 	return out, sc.Err()
+}
+
+// parseSpecLine parses one "<cidr> [ASN] [org...]" line into a SpecEntry. It
+// returns ok=false for a blank line, a '#'-comment, or a line whose first field
+// is not a valid prefix.
+func parseSpecLine(line string) (SpecEntry, bool) {
+	line = strings.TrimSpace(line)
+	if line == "" || line[0] == '#' {
+		return SpecEntry{}, false
+	}
+	fields := strings.Fields(line)
+	p, err := ParsePrefix(fields[0])
+	if err != nil {
+		return SpecEntry{}, false
+	}
+	e := SpecEntry{Prefix: p}
+	if len(fields) > 1 {
+		if asn, ok := parseASN(fields[1]); ok {
+			e.ASN = asn
+			e.Org = strings.Join(fields[2:], " ")
+		} else {
+			e.Org = strings.Join(fields[1:], " ")
+		}
+	}
+	return e, true
 }
 
 // parseASN parses a decimal AS number with an optional case-insensitive "AS"
@@ -84,6 +94,26 @@ func parseASN(s string) (uint32, bool) {
 	return uint32(n), true
 }
 
+// buildSet compiles entries into a membership Set, ignoring ASN/org.
+func buildSet(entries []SpecEntry) *Set {
+	b := NewBuilder()
+	for _, e := range entries {
+		b.Add(e.Prefix)
+	}
+	return b.Freeze()
+}
+
+// buildASN compiles entries into a membership Set plus an LPM value Table[Info].
+func buildASN(entries []SpecEntry) (*Set, *Table[Info]) {
+	sb := NewBuilder()
+	tb := NewTableBuilder[Info]()
+	for _, e := range entries {
+		sb.Add(e.Prefix)
+		tb.Add(e.Prefix, Info{Prefix: e.Prefix.String(), ASN: e.ASN, Org: e.Org})
+	}
+	return sb.Freeze(), tb.Freeze()
+}
+
 // LoadSet reads a spec (or a plain CIDR list) from r and compiles a membership
 // Set, ignoring any ASN/org fields.
 func LoadSet(r io.Reader) (*Set, error) {
@@ -91,11 +121,7 @@ func LoadSet(r io.Reader) (*Set, error) {
 	if err != nil {
 		return nil, err
 	}
-	b := NewBuilder()
-	for _, e := range entries {
-		b.Add(e.Prefix)
-	}
-	return b.Freeze(), nil
+	return buildSet(entries), nil
 }
 
 // LoadFunc reads a line-oriented stream and builds a Table[V], delegating the
@@ -132,11 +158,61 @@ func LoadASN(r io.Reader) (*Set, *Table[Info], error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	sb := NewBuilder()
-	tb := NewTableBuilder[Info]()
-	for _, e := range entries {
-		sb.Add(e.Prefix)
-		tb.Add(e.Prefix, Info{Prefix: e.Prefix.String(), ASN: e.ASN, Org: e.Org})
+	set, table := buildASN(entries)
+	return set, table, nil
+}
+
+// Refs is the common refs resource envelope — a named, versioned list of spec
+// lines — as published at refs.netstar.dev and similar feeds:
+//
+//	{"name": "parked", "version": 20260705, "list": ["1.2.3.0/24", ...]}
+//
+// Each list entry uses the same grammar as a ParseSpec line ("<cidr> [ASN]
+// [org...]"), so a bare CIDR list and an IP-to-ASN list are both valid bodies.
+type Refs struct {
+	Name    string   `json:"name"`
+	Version int      `json:"version"` // yyyymmdd
+	List    []string `json:"list"`
+}
+
+// ParseRefs decodes a refs JSON envelope from r.
+func ParseRefs(r io.Reader) (*Refs, error) {
+	var rf Refs
+	if err := json.NewDecoder(r).Decode(&rf); err != nil {
+		return nil, err
 	}
-	return sb.Freeze(), tb.Freeze(), nil
+	return &rf, nil
+}
+
+// Entries parses the refs list into spec entries, skipping blank/comment lines
+// and any entry whose first field is not a valid prefix.
+func (rf *Refs) Entries() []SpecEntry {
+	out := make([]SpecEntry, 0, len(rf.List))
+	for _, line := range rf.List {
+		if e, ok := parseSpecLine(line); ok {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// LoadRefsSet reads a refs JSON envelope and compiles a membership Set — the
+// JSON analogue of LoadSet.
+func LoadRefsSet(r io.Reader) (*Set, error) {
+	rf, err := ParseRefs(r)
+	if err != nil {
+		return nil, err
+	}
+	return buildSet(rf.Entries()), nil
+}
+
+// LoadRefsASN reads a refs JSON envelope and compiles a membership Set plus an
+// LPM value Table[Info] — the JSON analogue of LoadASN.
+func LoadRefsASN(r io.Reader) (*Set, *Table[Info], error) {
+	rf, err := ParseRefs(r)
+	if err != nil {
+		return nil, nil, err
+	}
+	set, table := buildASN(rf.Entries())
+	return set, table, nil
 }

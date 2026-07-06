@@ -91,6 +91,11 @@ list of CIDRs is a valid degenerate case.
 set, table, err := cidr.LoadASN(specReader) // membership Set + value Table[Info]
 ```
 
+The same lines also come wrapped in the common refs JSON envelope
+(`{"name","version","list":[...]}`, e.g. `refs.netstar.dev`) — `cidr.LoadRefsASN`
+/ `LoadRefsSet` / `ParseRefs` read it, and the `cidr` CLI's `-spec` accepts
+either form.
+
 For non-ASN feeds, `LoadFunc` builds a `Table[V]` of any value type from a
 per-line parse callback, and `AddRange` ingests start/end ranges. Where to pull
 real ASN/geo data (MaxMind, iptoasn, CAIDA, …) and how to convert it is in the

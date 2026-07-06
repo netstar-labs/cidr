@@ -113,6 +113,30 @@ set, table, err := cidr.LoadASN(r)              // Set + Table[cidr.Info] in one
 `LoadASN` builds both a membership `Set` and a value `Table[Info]` from the same
 input, so you can answer both questions.
 
+### Refs JSON envelope
+
+The common refs resource format wraps the spec lines in a named, versioned JSON
+envelope (as published at `refs.netstar.dev` — `parked.ip.json`, blocklists, …):
+
+```json
+{ "name": "parked", "version": 20260705, "list": ["1.2.3.0/24", "8.8.8.0/24 15169 Google LLC"] }
+```
+
+Each `list` entry uses the same `<cidr> [ASN] [org]` grammar, so both a bare
+CIDR list and an IP-to-ASN list are valid bodies. Load it with the JSON analogues
+of `LoadSet`/`LoadASN`, or decode the envelope for its metadata:
+
+```go
+set, table, err := cidr.LoadRefsASN(r)   // Set + Table[Info], like LoadASN
+set, err := cidr.LoadRefsSet(r)          // membership only
+
+rf, err := cidr.ParseRefs(r)             // rf.Name, rf.Version, rf.List
+entries := rf.Entries()                  // []SpecEntry, then build however
+```
+
+The `cidr` CLI's `-spec` accepts either form — it sniffs the first byte, so a
+`.json` refs file and a text spec both work with no flag.
+
 ### Custom formats with `LoadFunc`
 
 `ParseSpec`/`LoadASN` are ASN-shaped. For any other `<cidr> <data...>` feed,
@@ -349,9 +373,13 @@ before `Freeze`.
 | `LoadSet(io.Reader) (*Set, error)` | spec → membership `Set` |
 | `LoadASN(io.Reader) (*Set, *Table[Info], error)` | spec → `Set` + `Table[Info]` |
 | `LoadFunc[V](io.Reader, parse) (*Table[V], error)` | any custom `<cidr> data...` feed → `Table[V]` |
+| `ParseRefs(io.Reader) (*Refs, error)` | decode a `{name,version,list}` refs JSON envelope |
+| `(*Refs) Entries() []SpecEntry` | parse the refs list into spec entries |
+| `LoadRefsSet(io.Reader) (*Set, error)` | refs JSON → membership `Set` |
+| `LoadRefsASN(io.Reader) (*Set, *Table[Info], error)` | refs JSON → `Set` + `Table[Info]` |
 | `EncodeASN(asn, orgID uint32, flags uint8) uint64` | pack a compact value |
 | `DecodeASN(uint64) (asn, orgID uint32, flags uint8)` | unpack it |
-| `Info`, `SpecEntry` | value and parsed-entry types |
+| `Info`, `SpecEntry`, `Refs` | value, parsed-entry, and refs-envelope types |
 
 ## Command-line tool
 

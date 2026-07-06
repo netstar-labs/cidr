@@ -77,6 +77,59 @@ func TestLoadASN(t *testing.T) {
 	}
 }
 
+func TestRefs(t *testing.T) {
+	// an ASN-style refs body (list entries carry "<cidr> <ASN> <org>")
+	const asnJSON = `{
+	  "name": "asn",
+	  "version": 20260705,
+	  "list": [
+	    "1.1.1.0/24 13335 Cloudflare, Inc.",
+	    "1.1.1.128/25 99999 Sub-block",
+	    "2001:db8::/32 64502 Docs",
+	    "# a comment line",
+	    "garbage"
+	  ]
+	}`
+
+	rf, err := ParseRefs(strings.NewReader(asnJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rf.Name != "asn" || rf.Version != 20260705 {
+		t.Errorf("envelope = %+v", rf)
+	}
+	if got := len(rf.Entries()); got != 3 { // comment + garbage skipped
+		t.Errorf("entries = %d, want 3", got)
+	}
+
+	set, table, err := LoadRefsASN(strings.NewReader(asnJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !set.Contains(mustAddr("1.1.1.10")) || set.Contains(mustAddr("9.9.9.9")) {
+		t.Error("membership wrong")
+	}
+	if info, ok := table.Lookup(mustAddr("1.1.1.200")); !ok || info.ASN != 99999 { // nested /25 wins
+		t.Errorf("1.1.1.200 = %+v (ok=%v)", info, ok)
+	}
+	if info, ok := table.Lookup(mustAddr("2001:db8::1")); !ok || info.ASN != 64502 {
+		t.Errorf("v6 = %+v (ok=%v)", info, ok)
+	}
+
+	// a parked-style body: bare CIDRs, membership only
+	set2, err := LoadRefsSet(strings.NewReader(`{"name":"parked","version":1,"list":["10.0.0.0/8","192.0.2.0/24"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !set2.Contains(mustAddr("10.1.2.3")) {
+		t.Error("parked membership wrong")
+	}
+
+	if _, err := ParseRefs(strings.NewReader("not json")); err == nil {
+		t.Error("expected JSON parse error")
+	}
+}
+
 func TestLoadSet(t *testing.T) {
 	set, err := LoadSet(strings.NewReader("1.0.0.0/24\n1.0.1.0/24\n"))
 	if err != nil {
