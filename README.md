@@ -15,13 +15,31 @@ smaller** than a prefix trie (see [Architecture](docs/architecture.md)).
 
 No dependency beyond the Go standard library.
 
+## Data flow
+
+```
+  SOURCES                     BUILD (once)                QUERY (many, concurrent)
+  ───────                     ────────────                ────────────────────────
+  spec text ─┐
+  refs JSON ─┤  Load*/Parse*   Builder            ┌─ Set.Contains(addr)  → yes/no
+  <cidr> …  ─┼──────────────►  TableBuilder[V] ───┤
+  lo–hi     ─┘  Add / AddPrefix  │ .Freeze()      └─ Table[V].Lookup(addr) → value + ok
+                / AddRange       ▼
+                          immutable, sorted net/netip range arrays
+                          (one binary search · 0 alloc · lock-free reads)
+```
+
 ## Documentation
 
-- [Executive summary](docs/executive-summary.md) — what this is and why it exists
-- [User guide](docs/userguide.md) — API, the spec format, and usage patterns
-- [Architecture](docs/architecture.md) — the range-array design, longest-prefix
-  match, benchmarks, and the trie trade-off
-- [Examples](example/README.md) — library, HTTP, Unix-socket, and MCP integrations
+- **Start here** — [Introduction](docs/introduction.md) (what the name means and
+  the one idea it rests on) and the
+  [Executive summary](docs/executive-summary.md) (what this is and why it exists)
+- **Deep dive** — [Architecture](docs/architecture.md): the range-array design,
+  longest-prefix match, benchmarks, and the trie trade-off
+- **Operations** — [User guide](docs/userguide.md): the API, the spec and refs
+  formats, data sources, the CLI, and day-2 refresh
+- **Examples** — [example/README](example/README.md): library, HTTP, Unix-socket,
+  and MCP integrations
 
 ## Features
 
@@ -162,6 +180,18 @@ array gives up — cheap incremental insert/remove of single prefixes under live
 queries — is not what a static, wholesale-rebuilt set needs. The full analysis,
 including when a trie *is* the right choice, is in
 [docs/architecture.md](docs/architecture.md).
+
+## Layout
+
+The package is four root `.go` files (plus the `cmd/`, `example/`, and `build/`
+trees):
+
+| File | Purpose |
+|---|---|
+| [`cidr.go`](cidr.go) | Package doc; `ParsePrefix`; the `Set` membership type, its `Builder`, and the range-merge that fuses overlaps at `Freeze` |
+| [`table.go`](table.go) | `Table[V]` longest-prefix-match value table and `TableBuilder[V]`; the build-time line sweep that resolves nesting; `EncodeASN`/`DecodeASN` |
+| [`input.go`](input.go) | Text/JSON loaders — `ParseSpec`, `LoadSet`, `LoadASN`, `LoadFunc`, the `Refs` envelope (`ParseRefs`/`LoadRefs*`), and the `Info`/`SpecEntry` types |
+| [`range.go`](range.go) | Range ingest — `AddRange`, `RangePrefixes`/`AppendRangePrefixes`, and the `u128` range-to-CIDR arithmetic behind them |
 
 ## Install
 
