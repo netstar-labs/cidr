@@ -1,6 +1,10 @@
 // Command iptoasn fetches the iptoasn.com IP-to-ASN table, converts each
-// start/end address range to its minimal set of CIDR prefixes, and writes the
-// cidr spec format — "<cidr> <ASN> <org>" per line — that LoadASN reads back.
+// start/end address range to its minimal set of CIDR prefixes, and writes
+// cidr spec lines. Three output modes:
+//
+//   -output asn (default): "<cidr> <ASN> <org>" — load with LoadASN / cidr.
+//   -output country:       "<cidr> <country>" — pipe to mmdb-write -db-type GeoLite2-Country.
+//   -country:              "<cidr> <ASN> <country> <org>" — load with LoadASN / cidr, country prepended to org.
 //
 //	iptoasn                                   # fetch combined v4+v6 -> stdout
 //	iptoasn -family v4 -o ip2asn-v4.cidr      # just IPv4, to a file
@@ -44,7 +48,8 @@ func main() {
 	in := flag.String("in", "", "read a local TSV (optionally .gz) instead of fetching")
 	out := flag.String("o", "", "write to this file instead of stdout")
 	unrouted := flag.Bool("unrouted", false, `include AS0 "Not routed" rows`)
-	country := flag.Bool("country", false, "prepend the country code to the org field")
+	output := flag.String("output", "asn", `output format: "asn" (<cidr> <ASN> <org>) or "country" (<cidr> <country>)`)
+	country := flag.Bool("country", false, "prepend the country code to the org field (asn output only)")
 	timeout := flag.Duration("timeout", 30*time.Second, "dial/response-header timeout for the fetch")
 	flag.Parse()
 
@@ -52,8 +57,12 @@ func main() {
 		fmt.Printf("iptoasn %s (%s)\n", Version, Revision)
 		return
 	}
+	if *output != "asn" && *output != "country" {
+		fmt.Fprintf(os.Stderr, `iptoasn: -output must be "asn" or "country"`)
+		os.Exit(2)
+	}
 
-	opts := options{unrouted: *unrouted, country: *country}
+	opts := options{unrouted: *unrouted, outputMode: *output, country: *country}
 	if err := run(*family, *url, *in, *out, *timeout, opts); err != nil {
 		fmt.Fprintln(os.Stderr, "iptoasn:", err)
 		os.Exit(1)
@@ -123,8 +132,9 @@ func run(family, url, in, out string, timeout time.Duration, opts options) error
 }
 
 type options struct {
-	unrouted bool
-	country  bool
+	unrouted   bool
+	outputMode string // "asn" or "country"
+	country    bool   // prepend country to org (asn output only)
 }
 
 type stats struct {
@@ -132,11 +142,14 @@ type stats struct {
 }
 
 // convert streams the iptoasn TSV from r, decomposing each range into CIDR
-// prefixes and writing "<cidr> <asn> <org>" lines to w.
+// prefixes and writing spec lines. In "asn" mode (default) the format is
+// "<cidr> <ASN> <org>"; in "country" mode it is "<cidr> <country>" and all
+// rows (including AS0) are emitted.
 func convert(r io.Reader, w io.Writer, opts options) (stats, error) {
 	var st stats
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
+	isCountry := opts.outputMode == "country"
 	for sc.Scan() {
 		line := sc.Text()
 		if line == "" {
@@ -148,6 +161,29 @@ func convert(r io.Reader, w io.Writer, opts options) (stats, error) {
 			st.malformed++
 			continue
 		}
+		lo, err1 := netip.ParseAddr(cols[0])
+		hi, err2 := netip.ParseAddr(cols[1])
+		if err1 != nil || err2 != nil {
+			st.malformed++
+			continue
+		}
+
+		if isCountry {
+			cc := cols[3]
+			if cc == "" || cc == "None" {
+				continue
+			}
+			for _, p := range cidr.RangePrefixes(lo, hi) {
+				if _, err := fmt.Fprintf(w, "%s %s\n", p, cc); err != nil {
+					return st, err
+				}
+				st.prefixes++
+			}
+			st.rows++
+			continue
+		}
+
+		// asn mode
 		asn, err := strconv.ParseUint(cols[2], 10, 32)
 		if err != nil {
 			st.malformed++
@@ -155,12 +191,6 @@ func convert(r io.Reader, w io.Writer, opts options) (stats, error) {
 		}
 		if asn == 0 && !opts.unrouted {
 			st.unrouted++
-			continue
-		}
-		lo, err1 := netip.ParseAddr(cols[0])
-		hi, err2 := netip.ParseAddr(cols[1])
-		if err1 != nil || err2 != nil {
-			st.malformed++
 			continue
 		}
 		org := cols[4]

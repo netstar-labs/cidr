@@ -141,7 +141,7 @@ Cross-compile a version-stamped static binary with [`build/cidr`](build/cidr)
 
 ### More tools
 
-[`cmd/`](cmd) ships four more programs — see the [cmd README](cmd/README.md):
+[`cmd/`](cmd) ships five more programs — see the [cmd README](cmd/README.md):
 
 - **[`ipfold`](cmd/ipfold)** — fold an unorganized IP list into the minimal CIDR
   set (`10.0.0.12`, `.13`, `.14`, `.15` → `10.0.0.12/30`); built for 100M+
@@ -150,6 +150,10 @@ Cross-compile a version-stamped static binary with [`build/cidr`](build/cidr)
   **[`mm-dbip`](cmd/mm-dbip)** — fetch a provider's IP-to-ASN/geo table and
   write the cidr spec, with an optional systemd generator (see
   [data sources](docs/userguide.md#data-sources)).
+- **[`mmdb-write`](cmd/mmdb-write)** — compile a cidr spec into a MaxMind DB
+  (`.mmdb`) file, supporting both ASN (`GeoIP2-ASN`-compatible) and Country
+  (`GeoLite2-Country`-compatible) output schemas. Pipe any data generator
+  directly: `iptoasn | mmdb-write -o asn.mmdb`.
 
 ## Examples
 
