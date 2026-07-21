@@ -176,7 +176,7 @@ func writeMMDB(w io.Writer, entries []cidr.SpecEntry, dbType, description string
 		var record mmdbtype.DataType
 		if isCountry {
 			isoCode := e.Org
-			if isoCode == "" || isoCode == "Unknown" || isoCode == "EU" || isoCode == "AP" {
+			if isoCode == "" || isoCode == "Unknown" || isoCode == "EU" || isoCode == "AP" || isoCode == "ZZ" {
 				continue
 			}
 			ci, ok := countryData.Countries[isoCode]
@@ -225,6 +225,11 @@ func writeMMDB(w io.Writer, entries []cidr.SpecEntry, dbType, description string
 		}
 
 		if err := tree.Insert(network, record); err != nil {
+			var aliased *mmdbwriter.AliasedNetworkError
+			if errors.As(err, &aliased) {
+				fmt.Fprintf(os.Stderr, "mmdb-write: warning: skipping %s (aliased network)\n", e.Prefix)
+				continue
+			}
 			return 0, fmt.Errorf("insert %s: %w", e.Prefix, err)
 		}
 	}
