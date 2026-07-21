@@ -273,7 +273,7 @@ Input is `<cidr> <ASN> <org>` format from any data generator.
 
 For **Country** (`-db-type GeoLite2-Country`): each record holds
 `continent`, `country`, and `registered_country` in the standard GeoLite2
-schema — with country data extracted from geonames. Since the source spec provides only
+schema — with country data extracted from Wikidata. Since the source spec provides only
 one country per prefix, `country` and `registered_country` are set to the same
 value (the operator's country).
 
@@ -303,13 +303,11 @@ daily oneshot service + timer that fetches iptoasn.com and compiles
 `/var/lib/cidr/iptoasn-asn.mmdb` and `/var/lib/cidr/iptoasn-country.mmdb`.
 
 The embedded country metadata lives at `cmd/mmdb-write/data/countries.json`.
-Refresh it from geonames like so:
+Refresh it from Wikidata like so:
 
 ```sh
-# Recommended: download geonames countryInfo.txt + alternate names + EU codes
+# Recommended: download Wikidata country info
 go run ./cmd/mmdb-build-countries
-go run ./cmd/mmdb-build-countries -skip-eu     # skip Wikidata EU member query
-go run ./cmd/mmdb-build-countries -skip-alt    # skip alternate names (English only)
 ```
 
 ### Scheduled generation (systemd)

@@ -14,7 +14,7 @@ it over ssh). Each prints its build with `-version`.
 | [`mm-geolite2-asn`](mm-geolite2-asn) | fetch MaxMind GeoLite2 ASN → ASN spec |
 | [`mm-dbip`](mm-dbip) | fetch DB-IP Lite (country or ASN) → cidr spec |
 | [`mmdb-write`](mmdb-write) | compile a cidr spec into a MaxMind DB (`.mmdb`) file |
-| [`mmdb-build-countries`](mmdb-build-countries) | update geonames country metadata for `.mmdb` embedding |
+| [`mmdb-build-countries`](mmdb-build-countries) | update Wikidata country nomenclature for `.mmdb` |
 
 ## Query & utilities
 
@@ -53,7 +53,7 @@ selected by `-db-type`:
 
 - `GeoLite2-ASN` (default): `autonomous_system_number` / `autonomous_system_organization`
 - `GeoLite2-Country`: `continent` / `country` / `registered_country` in the
-  standard GeoLite2 schema, using an embedded country dataset built from [geonames.org](https://www.geonames.org) data.
+  standard GeoLite2 schema, using an embedded country dataset built from Wikidata.
   Since the source spec provides only one country per prefix, `country` and
   `registered_country` are set to the same value (the operator's country from
   the source). GeoLite2 distinguishes them — physical location vs registrant
@@ -75,7 +75,7 @@ Flags: `-in`, `-o`, `-db-type` (default `GeoLite2-ASN`), `-description`
 `-record-size` (24/28/32).
 
 Country metadata is stored in `cmd/mmdb-write/data/countries.json` and embedded
-at build time. Refresh it from [geonames.org](https://www.geonames.org) like so:
+at build time. Refresh it from [Wikidata](https://www.wikidata.org) like so:
 
 ```sh
 go run ./cmd/mmdb-build-countries
@@ -156,24 +156,21 @@ Flags: `-db` (`country`/`asn`), `-month` (default: current UTC month), `-url`,
 
 ### `mmdb-build-countries`
 
-Used for updating country data nomenclature for the `mmdb-write -db-type GeoLite2-Country` output.
+Builds the country nomenclature dataset used by `mmdb-write -db-type GeoLite2-Country`.
 
-Downloads [geonames.org](https://download.geonames.org) country data, then enriches
-all entries with multi-language names from
-[alternateNamesV2.zip](https://download.geonames.org/export/dump/alternateNamesV2.zip)
-(~200 MB download, processed entirely in memory). Only the 8 locales used by
-MaxMind (`de`, `en`, `es`, `fr`, `ja`, `pt-BR`, `ru`, `zh-CN`) are kept.
+Fetches all country metadata via a single [Wikidata](https://www.wikidata.org) SPARQL query:
+ISO codes (`P297`), translated names in 8 locales (`de`, `en`, `es`, `fr`, `ja`,
+`pt-BR`, `ru`, `zh-CN`), continent mapping (`P30`), EU membership (`P463` with
+end-date filtering), and GeoNames IDs (`P1566`). GeoNames IDs are used in MaxMind databases.
 
-Wikidata is then queried for current EU member states, which are marked with
-`is_in_european_union: true` in the output database.
+No external attribution required — Wikidata is CC0 / public domain.
 
 ```sh
-mmdb-build-countries                                     # download country + alt names + EU codes
-mmdb-build-countries -skip-alt                           # skip alt names (English only)
-mmdb-build-countries -skip-eu                            # skip Wikidata EU query
+mmdb-build-countries                                       # single Wikidata query
+mmdb-build-countries -o data/countries.json                # custom output path
 ```
 
-Flags: `-skip-alt`, `-skip-eu`, `-o` (default `cmd/mmdb-write/data/countries.json`).
+Flags: `-o` (default `cmd/mmdb-write/data/countries.json`).
 
 ---
 
