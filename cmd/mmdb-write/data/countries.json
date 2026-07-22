@@ -1,0 +1,3908 @@
+{
+  "continents": {
+    "AF": {
+      "geoname_id": 6255146,
+      "names": {
+        "de": "Afrika",
+        "en": "Africa",
+        "es": "África",
+        "fr": "Afrique",
+        "ja": "アフリカ",
+        "pt-BR": "África",
+        "ru": "Африка",
+        "zh-CN": "非洲"
+      }
+    },
+    "AN": {
+      "geoname_id": 6255152,
+      "names": {
+        "de": "Antarktika",
+        "en": "Antarctica",
+        "es": "Antártida",
+        "fr": "Antarctique",
+        "ja": "南極大陸",
+        "pt-BR": "Antártida",
+        "ru": "Антарктида",
+        "zh-CN": "南极洲"
+      }
+    },
+    "AS": {
+      "geoname_id": 6255147,
+      "names": {
+        "de": "Asien",
+        "en": "Asia",
+        "es": "Asia",
+        "fr": "Asie",
+        "ja": "アジア",
+        "pt-BR": "Ásia",
+        "ru": "Азия",
+        "zh-CN": "亚洲"
+      }
+    },
+    "EU": {
+      "geoname_id": 6255148,
+      "names": {
+        "de": "Europa",
+        "en": "Europe",
+        "es": "Europa",
+        "fr": "Europe",
+        "ja": "ヨーロッパ",
+        "pt-BR": "Europa",
+        "ru": "Европа",
+        "zh-CN": "欧洲"
+      }
+    },
+    "NA": {
+      "geoname_id": 6255149,
+      "names": {
+        "de": "Nordamerika",
+        "en": "North America",
+        "es": "América del Norte",
+        "fr": "Amérique du Nord",
+        "ja": "北アメリカ",
+        "pt-BR": "América do Norte",
+        "ru": "Северная Америка",
+        "zh-CN": "北美洲"
+      }
+    },
+    "OC": {
+      "geoname_id": 6255151,
+      "names": {
+        "de": "Ozeanien",
+        "en": "Oceania",
+        "es": "Oceanía",
+        "fr": "Océanie",
+        "ja": "オセアニア",
+        "pt-BR": "Oceania",
+        "ru": "Австралия и Океания",
+        "zh-CN": "大洋洲"
+      }
+    },
+    "SA": {
+      "geoname_id": 6255150,
+      "names": {
+        "de": "Südamerika",
+        "en": "South America",
+        "es": "América del Sur",
+        "fr": "Amérique du Sud",
+        "ja": "南アメリカ",
+        "pt-BR": "América do Sul",
+        "ru": "Южная Америка",
+        "zh-CN": "南美洲"
+      }
+    }
+  },
+  "countries": {
+    "AC": {
+      "geoname_id": 2411430,
+      "names": {
+        "en": "Ascension",
+        "ru": "Остров Вознесения"
+      },
+      "continent_code": "",
+      "is_in_european_union": false
+    },
+    "AD": {
+      "geoname_id": 3041565,
+      "names": {
+        "de": "Andorra",
+        "en": "Andorra",
+        "es": "Andorra",
+        "fr": "Andorre",
+        "ja": "アンドラ",
+        "pt-BR": "Andorra",
+        "ru": "Андорра",
+        "zh-CN": "安道尔"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "AE": {
+      "geoname_id": 290557,
+      "names": {
+        "de": "Vereinigte Arabische Emirate",
+        "en": "United Arab Emirates",
+        "es": "Emiratos Árabes Unidos",
+        "fr": "Émirats arabes unis",
+        "ja": "アラブ首長国連邦",
+        "pt-BR": "Emirados Árabes Unidos",
+        "ru": "Объединённые Арабские Эмираты",
+        "zh-CN": "阿拉伯联合酋长国"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "AF": {
+      "geoname_id": 1149361,
+      "names": {
+        "de": "Afghanistan",
+        "en": "Afghanistan",
+        "es": "Afganistán",
+        "fr": "Afghanistan",
+        "ja": "アフガニスタン",
+        "pt-BR": "Afeganistão",
+        "ru": "Афганистан",
+        "zh-CN": "阿富汗"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "AG": {
+      "geoname_id": 3576396,
+      "names": {
+        "de": "Antigua und Barbuda",
+        "en": "Antigua and Barbuda",
+        "es": "Antigua y Barbuda",
+        "fr": "Antigua-et-Barbuda",
+        "ja": "アンティグア・バーブーダ王国",
+        "pt-BR": "Antígua e Barbuda",
+        "ru": "Антигуа и Барбуда",
+        "zh-CN": "安提瓜和巴布达"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "AI": {
+      "geoname_id": 3573511,
+      "names": {
+        "de": "Anguilla",
+        "en": "Anguilla",
+        "es": "Anguila",
+        "fr": "Anguilla",
+        "ja": "アンギラ",
+        "pt-BR": "Anguilla",
+        "ru": "Ангилья",
+        "zh-CN": "安圭拉"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "AL": {
+      "geoname_id": 783754,
+      "names": {
+        "de": "Albanien",
+        "en": "Albania",
+        "es": "Albania",
+        "fr": "Albanie",
+        "ja": "アルバニア",
+        "pt-BR": "Albânia",
+        "ru": "Албания",
+        "zh-CN": "阿尔巴尼亚"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "AM": {
+      "geoname_id": 174982,
+      "names": {
+        "de": "Armenien",
+        "en": "Armenia",
+        "es": "Armenia",
+        "fr": "Arménie",
+        "ja": "アルメニア",
+        "pt-BR": "Armênia",
+        "ru": "Армения",
+        "zh-CN": "亚美尼亚"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "AO": {
+      "geoname_id": 3351879,
+      "names": {
+        "de": "Angola",
+        "en": "Angola",
+        "es": "Angola",
+        "fr": "Angola",
+        "ja": "アンゴラ",
+        "pt-BR": "Angola",
+        "ru": "Ангола",
+        "zh-CN": "安哥拉"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "AQ": {
+      "geoname_id": 6255152,
+      "names": {
+        "de": "Antarktika",
+        "en": "Antarctica",
+        "es": "Antártida",
+        "fr": "Antarctique",
+        "ja": "南極大陸",
+        "pt-BR": "Antártida",
+        "ru": "Антарктида",
+        "zh-CN": "南极洲"
+      },
+      "continent_code": "AN",
+      "is_in_european_union": false
+    },
+    "AR": {
+      "geoname_id": 3865483,
+      "names": {
+        "de": "Argentinien",
+        "en": "Argentina",
+        "es": "Argentina",
+        "fr": "Argentine",
+        "ja": "アルゼンチン",
+        "pt-BR": "Argentina",
+        "ru": "Аргентина",
+        "zh-CN": "阿根廷"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "AS": {
+      "geoname_id": 5880801,
+      "names": {
+        "de": "Amerikanisch-Samoa",
+        "en": "American Samoa",
+        "es": "Samoa Americana",
+        "fr": "Samoa américaines",
+        "ja": "アメリカ領サモア",
+        "pt-BR": "Samoa Americana",
+        "ru": "Американское Самоа",
+        "zh-CN": "美属萨摩亚"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "AT": {
+      "geoname_id": 2782113,
+      "names": {
+        "de": "Österreich",
+        "en": "Austria",
+        "es": "Austria",
+        "fr": "Autriche",
+        "ja": "オーストリア",
+        "pt-BR": "Áustria",
+        "ru": "Австрия",
+        "zh-CN": "奥地利"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "AU": {
+      "geoname_id": 2077456,
+      "names": {
+        "de": "Australien",
+        "en": "Australia",
+        "es": "Australia",
+        "fr": "Australie",
+        "ja": "オーストラリア",
+        "pt-BR": "Austrália",
+        "ru": "Австралия",
+        "zh-CN": "澳大利亚"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "AW": {
+      "geoname_id": 3577279,
+      "names": {
+        "de": "Aruba",
+        "en": "Aruba",
+        "es": "Aruba",
+        "fr": "Aruba",
+        "ja": "アルバ",
+        "pt-BR": "Aruba",
+        "ru": "Аруба",
+        "zh-CN": "阿鲁巴"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "AX": {
+      "geoname_id": 661882,
+      "names": {
+        "de": "Åland",
+        "en": "Åland",
+        "es": "Åland",
+        "fr": "Åland",
+        "ja": "オーランド諸島",
+        "pt-BR": "Åland",
+        "ru": "Аландские острова",
+        "zh-CN": "奥兰"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "AZ": {
+      "geoname_id": 587116,
+      "names": {
+        "de": "Aserbaidschan",
+        "en": "Azerbaijan",
+        "es": "Azerbaiyán",
+        "fr": "Azerbaïdjan",
+        "ja": "アゼルバイジャン",
+        "pt-BR": "Azerbaijão",
+        "ru": "Азербайджан",
+        "zh-CN": "阿塞拜疆"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "BA": {
+      "geoname_id": 3277605,
+      "names": {
+        "de": "Bosnien und Herzegowina",
+        "en": "Bosnia and Herzegovina",
+        "es": "Bosnia y Herzegovina",
+        "fr": "Bosnie-Herzégovine",
+        "ja": "ボスニア・ヘルツェゴビナ",
+        "pt-BR": "Bósnia e Herzegovina",
+        "ru": "Босния и Герцеговина",
+        "zh-CN": "波斯尼亚和黑塞哥维那"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "BB": {
+      "geoname_id": 3374084,
+      "names": {
+        "de": "Barbados",
+        "en": "Barbados",
+        "es": "Barbados",
+        "fr": "Barbade",
+        "ja": "バルバドス",
+        "pt-BR": "Barbados",
+        "ru": "Барбадос",
+        "zh-CN": "巴巴多斯"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "BD": {
+      "geoname_id": 1210997,
+      "names": {
+        "de": "Bangladesch",
+        "en": "Bangladesh",
+        "es": "Bangladés",
+        "fr": "Bangladesh",
+        "ja": "バングラデシュ",
+        "pt-BR": "Bangladesh",
+        "ru": "Бангладеш",
+        "zh-CN": "孟加拉国"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "BE": {
+      "geoname_id": 2802361,
+      "names": {
+        "de": "Belgien",
+        "en": "Belgium",
+        "es": "Bélgica",
+        "fr": "Belgique",
+        "ja": "ベルギー",
+        "pt-BR": "Bélgica",
+        "ru": "Бельгия",
+        "zh-CN": "比利时"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "BF": {
+      "geoname_id": 2361809,
+      "names": {
+        "de": "Burkina Faso",
+        "en": "Burkina Faso",
+        "es": "Burkina Faso",
+        "fr": "Burkina Faso",
+        "ja": "ブルキナファソ",
+        "pt-BR": "Burquina Fasso",
+        "ru": "Буркина-Фасо",
+        "zh-CN": "布基纳法索"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "BG": {
+      "geoname_id": 732800,
+      "names": {
+        "de": "Bulgarien",
+        "en": "Bulgaria",
+        "es": "Bulgaria",
+        "fr": "Bulgarie",
+        "ja": "ブルガリア",
+        "pt-BR": "Bulgária",
+        "ru": "Болгария",
+        "zh-CN": "保加利亚"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "BH": {
+      "geoname_id": 290291,
+      "names": {
+        "de": "Bahrain",
+        "en": "Bahrain",
+        "es": "Baréin",
+        "fr": "Bahreïn",
+        "ja": "バーレーン",
+        "pt-BR": "Barém",
+        "ru": "Бахрейн",
+        "zh-CN": "巴林"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "BI": {
+      "geoname_id": 433561,
+      "names": {
+        "de": "Burundi",
+        "en": "Burundi",
+        "es": "Burundi",
+        "fr": "Burundi",
+        "ja": "ブルンジ",
+        "pt-BR": "Burundi",
+        "ru": "Бурунди",
+        "zh-CN": "布隆迪"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "BJ": {
+      "geoname_id": 2395170,
+      "names": {
+        "de": "Benin",
+        "en": "Benin",
+        "es": "Benín",
+        "fr": "Bénin",
+        "ja": "ベナン",
+        "pt-BR": "Benim",
+        "ru": "Бенин",
+        "zh-CN": "贝宁"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "BL": {
+      "geoname_id": 3578476,
+      "names": {
+        "de": "Saint-Barthélemy",
+        "en": "Saint Barthélemy",
+        "es": "San Bartolomé",
+        "fr": "Saint-Barthélemy",
+        "ja": "サン・バルテルミー島",
+        "pt-BR": "São Bartolomeu",
+        "ru": "Сен-Бартелеми",
+        "zh-CN": "圣巴泰勒米"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "BM": {
+      "geoname_id": 3573345,
+      "names": {
+        "de": "Bermuda",
+        "en": "Bermuda",
+        "es": "Bermudas",
+        "fr": "Bermudes",
+        "ja": "バミューダ",
+        "pt-BR": "Bermudas",
+        "ru": "Бермудские Острова",
+        "zh-CN": "百慕大"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "BN": {
+      "geoname_id": 1820814,
+      "names": {
+        "de": "Brunei",
+        "en": "Brunei",
+        "es": "Brunéi",
+        "fr": "Brunei",
+        "ja": "ブルネイ",
+        "pt-BR": "Brunei",
+        "ru": "Бруней",
+        "zh-CN": "文莱"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "BO": {
+      "geoname_id": 3923057,
+      "names": {
+        "de": "Bolivien",
+        "en": "Bolivia",
+        "es": "Bolivia",
+        "fr": "Bolivie",
+        "ja": "ボリビア",
+        "pt-BR": "Bolívia",
+        "ru": "Боливия",
+        "zh-CN": "玻利维亚"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "BQ": {
+      "geoname_id": 7626844,
+      "names": {
+        "de": "Karibische Niederlande",
+        "en": "Caribbean Netherlands",
+        "es": "Caribe neerlandés",
+        "fr": "Pays-Bas caribéens",
+        "ja": "ボネール、シント・ユースタティウスおよびサバ",
+        "pt-BR": "Países Baixos Caribenhos",
+        "ru": "Бонайре, Синт-Эстатиус и Саба",
+        "zh-CN": "荷兰加勒比区"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "BR": {
+      "geoname_id": 3469034,
+      "names": {
+        "de": "Brasilien",
+        "en": "Brazil",
+        "es": "Brasil",
+        "fr": "Brésil",
+        "ja": "ブラジル",
+        "pt-BR": "Brasil",
+        "ru": "Бразилия",
+        "zh-CN": "巴西"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "BS": {
+      "geoname_id": 3572887,
+      "names": {
+        "de": "Bahamas",
+        "en": "The Bahamas",
+        "es": "Bahamas",
+        "fr": "Bahamas",
+        "ja": "バハマ王国",
+        "pt-BR": "Bahamas",
+        "ru": "Багамские Острова",
+        "zh-CN": "巴哈马"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "BT": {
+      "geoname_id": 1252634,
+      "names": {
+        "de": "Bhutan",
+        "en": "Bhutan",
+        "es": "Bután",
+        "fr": "Bhoutan",
+        "ja": "ブータン",
+        "pt-BR": "Butão",
+        "ru": "Бутан",
+        "zh-CN": "不丹"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "BV": {
+      "geoname_id": 3371122,
+      "names": {
+        "de": "Bouvetinsel",
+        "en": "Bouvet Island",
+        "es": "Isla Bouvet",
+        "fr": "île Bouvet",
+        "ja": "ブーベ島",
+        "pt-BR": "Ilha Bouvet",
+        "ru": "Остров Буве",
+        "zh-CN": "布韦岛"
+      },
+      "continent_code": "AN",
+      "is_in_european_union": false
+    },
+    "BW": {
+      "geoname_id": 933860,
+      "names": {
+        "de": "Botswana",
+        "en": "Botswana",
+        "es": "Botsuana",
+        "fr": "Botswana",
+        "ja": "ボツワナ",
+        "pt-BR": "Botswana",
+        "ru": "Ботсвана",
+        "zh-CN": "博茨瓦纳"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "BY": {
+      "geoname_id": 630336,
+      "names": {
+        "de": "Belarus",
+        "en": "Belarus",
+        "es": "Bielorrusia",
+        "fr": "Biélorussie",
+        "ja": "ベラルーシ",
+        "pt-BR": "Belarus",
+        "ru": "Беларусь",
+        "zh-CN": "白俄罗斯"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "BZ": {
+      "geoname_id": 3582678,
+      "names": {
+        "de": "Belize",
+        "en": "Belize",
+        "es": "Belice",
+        "fr": "Belize",
+        "ja": "ベリーズ",
+        "pt-BR": "Belize",
+        "ru": "Белиз",
+        "zh-CN": "伯利兹"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "CA": {
+      "geoname_id": 6251999,
+      "names": {
+        "de": "Kanada",
+        "en": "Canada",
+        "es": "Canadá",
+        "fr": "Canada",
+        "ja": "カナダ",
+        "pt-BR": "Canadá",
+        "ru": "Канада",
+        "zh-CN": "加拿大"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "CC": {
+      "geoname_id": 1547376,
+      "names": {
+        "de": "Kokosinseln",
+        "en": "Cocos (Keeling) Islands",
+        "es": "islas Cocos",
+        "fr": "îles Cocos",
+        "ja": "ココス諸島",
+        "pt-BR": "Ilhas Cocos",
+        "ru": "Кокосовые острова",
+        "zh-CN": "科科斯（基林）群岛"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "CD": {
+      "geoname_id": 203312,
+      "names": {
+        "de": "Demokratische Republik Kongo",
+        "en": "Democratic Republic of the Congo",
+        "es": "República Democrática del Congo",
+        "fr": "République démocratique du Congo",
+        "ja": "コンゴ民主共和国",
+        "pt-BR": "República Democrática do Congo",
+        "ru": "Демократическая Республика Конго",
+        "zh-CN": "刚果民主共和国"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "CF": {
+      "geoname_id": 239880,
+      "names": {
+        "de": "Zentralafrikanische Republik",
+        "en": "Central African Republic",
+        "es": "República Centroafricana",
+        "fr": "République centrafricaine",
+        "ja": "中央アフリカ共和国",
+        "pt-BR": "República Centro-Africana",
+        "ru": "Центральноафриканская Республика",
+        "zh-CN": "中非共和国"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "CG": {
+      "geoname_id": 2260494,
+      "names": {
+        "de": "Republik Kongo",
+        "en": "Republic of the Congo",
+        "es": "Congo",
+        "fr": "République du Congo",
+        "ja": "コンゴ共和国",
+        "pt-BR": "República do Congo",
+        "ru": "Республика Конго",
+        "zh-CN": "刚果共和国"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "CH": {
+      "geoname_id": 2658434,
+      "names": {
+        "de": "Schweiz",
+        "en": "Switzerland",
+        "es": "Suiza",
+        "fr": "Suisse",
+        "ja": "スイス",
+        "pt-BR": "Suíça",
+        "ru": "Швейцария",
+        "zh-CN": "瑞士"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "CI": {
+      "geoname_id": 2287781,
+      "names": {
+        "de": "Elfenbeinküste",
+        "en": "Ivory Coast",
+        "es": "Costa de Marfil",
+        "fr": "Côte d'Ivoire",
+        "ja": "コートジボワール",
+        "pt-BR": "Costa do Marfim",
+        "ru": "Кот-д’Ивуар",
+        "zh-CN": "科特迪瓦"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "CK": {
+      "geoname_id": 1899402,
+      "names": {
+        "de": "Cookinseln",
+        "en": "Cook Islands",
+        "es": "Islas Cook",
+        "fr": "Îles Cook",
+        "ja": "クック諸島",
+        "pt-BR": "ilhas Cook",
+        "ru": "Острова Кука",
+        "zh-CN": "库克群岛"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "CL": {
+      "geoname_id": 3895114,
+      "names": {
+        "de": "Chile",
+        "en": "Chile",
+        "es": "Chile",
+        "fr": "Chili",
+        "ja": "チリ",
+        "pt-BR": "Chile",
+        "ru": "Чили",
+        "zh-CN": "智利"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "CM": {
+      "geoname_id": 2233387,
+      "names": {
+        "de": "Kamerun",
+        "en": "Cameroon",
+        "es": "Camerún",
+        "fr": "Cameroun",
+        "ja": "カメルーン",
+        "pt-BR": "Camarões",
+        "ru": "Камерун",
+        "zh-CN": "喀麦隆"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "CN": {
+      "geoname_id": 1814991,
+      "names": {
+        "de": "Volksrepublik China",
+        "en": "People's Republic of China",
+        "es": "República Popular China",
+        "fr": "République populaire de Chine",
+        "ja": "中華人民共和国",
+        "pt-BR": "República Popular da China",
+        "ru": "Китай",
+        "zh-CN": "中华人民共和国"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "CO": {
+      "geoname_id": 3686110,
+      "names": {
+        "de": "Kolumbien",
+        "en": "Colombia",
+        "es": "Colombia",
+        "fr": "Colombie",
+        "ja": "コロンビア",
+        "pt-BR": "Colômbia",
+        "ru": "Колумбия",
+        "zh-CN": "哥伦比亚"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "CP": {
+      "geoname_id": 4020095,
+      "names": {
+        "de": "Clipperton-Insel",
+        "en": "Clipperton Island",
+        "es": "Isla Clipperton",
+        "fr": "La Passion–Clipperton",
+        "ja": "クリッパートン島",
+        "pt-BR": "Ilha de Clipperton",
+        "ru": "Клиппертон",
+        "zh-CN": "克利珀顿岛"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "CQ": {
+      "geoname_id": 3042282,
+      "names": {
+        "de": "Sark",
+        "en": "Sark",
+        "es": "Sark",
+        "fr": "Sercq",
+        "ja": "サーク島",
+        "pt-BR": "Sark",
+        "ru": "Сарк",
+        "zh-CN": "萨克"
+      },
+      "continent_code": "",
+      "is_in_european_union": false
+    },
+    "CR": {
+      "geoname_id": 3624060,
+      "names": {
+        "de": "Costa Rica",
+        "en": "Costa Rica",
+        "es": "Costa Rica",
+        "fr": "Costa Rica",
+        "ja": "コスタリカ",
+        "pt-BR": "Costa Rica",
+        "ru": "Коста-Рика",
+        "zh-CN": "哥斯达黎加"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "CU": {
+      "geoname_id": 3562981,
+      "names": {
+        "de": "Kuba",
+        "en": "Cuba",
+        "es": "Cuba",
+        "fr": "Cuba",
+        "ja": "キューバ",
+        "pt-BR": "Cuba",
+        "ru": "Куба",
+        "zh-CN": "古巴"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "CV": {
+      "geoname_id": 3374766,
+      "names": {
+        "de": "Kap Verde",
+        "en": "Cape Verde",
+        "es": "Cabo Verde",
+        "fr": "Cap-Vert",
+        "ja": "カーボベルデ",
+        "pt-BR": "Cabo Verde",
+        "ru": "Кабо-Верде",
+        "zh-CN": "佛得角"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "CW": {
+      "geoname_id": 7626836,
+      "names": {
+        "de": "Curaçao",
+        "en": "Curaçao",
+        "es": "Curazao",
+        "fr": "Curaçao",
+        "ja": "キュラソー",
+        "pt-BR": "Curaçau",
+        "ru": "Кюрасао",
+        "zh-CN": "库拉索"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "CX": {
+      "geoname_id": 2078138,
+      "names": {
+        "de": "Weihnachtsinsel",
+        "en": "Christmas Island",
+        "es": "Isla de Navidad",
+        "fr": "île Christmas",
+        "ja": "クリスマス島",
+        "pt-BR": "Ilha Christmas",
+        "ru": "Остров Рождества"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "CY": {
+      "geoname_id": 146669,
+      "names": {
+        "de": "Zypern",
+        "en": "Cyprus",
+        "es": "Chipre",
+        "fr": "Chypre",
+        "ja": "キプロス",
+        "pt-BR": "Chipre",
+        "ru": "Кипр",
+        "zh-CN": "塞浦路斯"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "CZ": {
+      "geoname_id": 3077311,
+      "names": {
+        "de": "Tschechien",
+        "en": "Czech Republic",
+        "es": "República Checa",
+        "fr": "Tchéquie",
+        "ja": "チェコ共和国",
+        "pt-BR": "Tchéquia",
+        "ru": "Чехия",
+        "zh-CN": "捷克"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "DE": {
+      "geoname_id": 2921044,
+      "names": {
+        "de": "Deutschland",
+        "en": "Germany",
+        "es": "Alemania",
+        "fr": "Allemagne",
+        "ja": "ドイツ",
+        "pt-BR": "Alemanha",
+        "ru": "Германия",
+        "zh-CN": "德国"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "DG": {
+      "geoname_id": 1282575,
+      "names": {
+        "de": "Diego Garcia",
+        "en": "Diego Garcia",
+        "es": "Diego García",
+        "fr": "Diego Garcia",
+        "ja": "ディエゴガルシア島",
+        "pt-BR": "Diego Garcia",
+        "ru": "Диего-Гарсия",
+        "zh-CN": "迪戈加西亚岛"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "DJ": {
+      "geoname_id": 223816,
+      "names": {
+        "de": "Dschibuti",
+        "en": "Djibouti",
+        "es": "Yibuti",
+        "fr": "Djibouti",
+        "ja": "ジブチ",
+        "pt-BR": "Djibuti",
+        "ru": "Джибути",
+        "zh-CN": "吉布提"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "DK": {
+      "geoname_id": 2623032,
+      "names": {
+        "de": "Dänemark",
+        "en": "Denmark",
+        "es": "Dinamarca",
+        "fr": "Danemark",
+        "ja": "デンマーク",
+        "pt-BR": "Dinamarca",
+        "ru": "Дания",
+        "zh-CN": "丹麦"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "DM": {
+      "geoname_id": 3575830,
+      "names": {
+        "de": "Dominica",
+        "en": "Dominica",
+        "es": "Dominica",
+        "fr": "Dominique",
+        "ja": "ドミニカ国",
+        "pt-BR": "Dominica",
+        "ru": "Доминика",
+        "zh-CN": "多米尼克"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "DO": {
+      "geoname_id": 3508796,
+      "names": {
+        "de": "Dominikanische Republik",
+        "en": "Dominican Republic",
+        "es": "República Dominicana",
+        "fr": "République dominicaine",
+        "ja": "ドミニカ共和国",
+        "pt-BR": "República Dominicana",
+        "ru": "Доминиканская Республика",
+        "zh-CN": "多米尼加"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "DZ": {
+      "geoname_id": 2589581,
+      "names": {
+        "de": "Algerien",
+        "en": "Algeria",
+        "es": "Argelia",
+        "fr": "Algérie",
+        "ja": "アルジェリア",
+        "pt-BR": "Argélia",
+        "ru": "Алжир",
+        "zh-CN": "阿尔及利亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "EC": {
+      "geoname_id": 3658394,
+      "names": {
+        "de": "Ecuador",
+        "en": "Ecuador",
+        "es": "Ecuador",
+        "fr": "Équateur",
+        "ja": "エクアドル",
+        "pt-BR": "Equador",
+        "ru": "Эквадор",
+        "zh-CN": "厄瓜多尔"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "EE": {
+      "geoname_id": 453733,
+      "names": {
+        "de": "Estland",
+        "en": "Estonia",
+        "es": "Estonia",
+        "fr": "Estonie",
+        "ja": "エストニア",
+        "pt-BR": "Estônia",
+        "ru": "Эстония",
+        "zh-CN": "爱沙尼亚"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "EG": {
+      "geoname_id": 357994,
+      "names": {
+        "de": "Ägypten",
+        "en": "Egypt",
+        "es": "Egipto",
+        "fr": "Égypte",
+        "ja": "エジプト",
+        "pt-BR": "Egito",
+        "ru": "Египет",
+        "zh-CN": "埃及"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "EH": {
+      "geoname_id": 2461445,
+      "names": {
+        "de": "Westsahara",
+        "en": "Western Sahara",
+        "es": "Sahara Occidental",
+        "fr": "Sahara occidental",
+        "ja": "西サハラ",
+        "pt-BR": "Saara Ocidental",
+        "ru": "Западная Сахара",
+        "zh-CN": "西撒哈拉"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "ER": {
+      "geoname_id": 338010,
+      "names": {
+        "de": "Eritrea",
+        "en": "Eritrea",
+        "es": "Eritrea",
+        "fr": "Érythrée",
+        "ja": "エリトリア",
+        "pt-BR": "Eritreia",
+        "ru": "Эритрея",
+        "zh-CN": "厄立特里亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "ES": {
+      "geoname_id": 2510769,
+      "names": {
+        "de": "Spanien",
+        "en": "Spain",
+        "es": "España",
+        "fr": "Espagne",
+        "ja": "スペイン王国",
+        "pt-BR": "Espanha",
+        "ru": "Испания",
+        "zh-CN": "西班牙"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "ET": {
+      "geoname_id": 337996,
+      "names": {
+        "de": "Äthiopien",
+        "en": "Ethiopia",
+        "es": "Etiopía",
+        "fr": "Éthiopie",
+        "ja": "エチオピア",
+        "pt-BR": "Etiópia",
+        "ru": "Эфиопия",
+        "zh-CN": "埃塞俄比亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "FI": {
+      "geoname_id": 660013,
+      "names": {
+        "de": "Finnland",
+        "en": "Finland",
+        "es": "Finlandia",
+        "fr": "Finlande",
+        "ja": "フィンランド",
+        "pt-BR": "Finlândia",
+        "ru": "Финляндия",
+        "zh-CN": "芬兰"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "FJ": {
+      "geoname_id": 2205218,
+      "names": {
+        "de": "Fidschi",
+        "en": "Fiji",
+        "es": "Fiyi",
+        "fr": "Fidji",
+        "ja": "フィジー",
+        "pt-BR": "Fiji",
+        "ru": "Фиджи",
+        "zh-CN": "斐济"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "FK": {
+      "geoname_id": 3474414,
+      "names": {
+        "de": "Falklandinseln",
+        "en": "Falkland Islands",
+        "es": "Islas Malvinas",
+        "fr": "îles Malouines",
+        "ja": "フォークランド諸島",
+        "pt-BR": "Ilhas Malvinas",
+        "ru": "Фолклендские острова",
+        "zh-CN": "马尔维纳斯群岛"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "FM": {
+      "geoname_id": 2081918,
+      "names": {
+        "de": "Föderierte Staaten von Mikronesien",
+        "en": "Federated States of Micronesia",
+        "es": "Estados Federados de Micronesia",
+        "fr": "États fédérés de Micronésie",
+        "ja": "ミクロネシア連邦",
+        "pt-BR": "Micronésia",
+        "ru": "Федеративные Штаты Микронезии",
+        "zh-CN": "密克罗尼西亚联邦"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "FO": {
+      "geoname_id": 2622320,
+      "names": {
+        "de": "Färöer",
+        "en": "Faroe Islands",
+        "es": "Islas Feroe",
+        "fr": "îles Féroé",
+        "ja": "フェロー諸島",
+        "pt-BR": "Ilhas Feroe",
+        "ru": "Фарерские острова",
+        "zh-CN": "法罗群岛"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "FR": {
+      "geoname_id": 3017382,
+      "names": {
+        "de": "Frankreich",
+        "en": "France",
+        "es": "Francia",
+        "fr": "France",
+        "ja": "フランス",
+        "pt-BR": "França",
+        "ru": "Франция",
+        "zh-CN": "法国"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "GA": {
+      "geoname_id": 2400553,
+      "names": {
+        "de": "Gabun",
+        "en": "Gabon",
+        "es": "Gabón",
+        "fr": "Gabon",
+        "ja": "ガボン",
+        "pt-BR": "Gabão",
+        "ru": "Габон",
+        "zh-CN": "加蓬"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "GB": {
+      "geoname_id": 2635167,
+      "names": {
+        "de": "Vereinigtes Königreich",
+        "en": "United Kingdom",
+        "es": "Reino Unido",
+        "fr": "Royaume-Uni",
+        "ja": "イギリス王国",
+        "pt-BR": "Reino Unido",
+        "ru": "Великобритания",
+        "zh-CN": "英国"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "GD": {
+      "geoname_id": 3580239,
+      "names": {
+        "de": "Grenada",
+        "en": "Grenada",
+        "es": "Granada",
+        "fr": "Grenade",
+        "ja": "グレナダ",
+        "pt-BR": "Granada",
+        "ru": "Гренада",
+        "zh-CN": "格林纳达"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "GE": {
+      "geoname_id": 614540,
+      "names": {
+        "de": "Georgien",
+        "en": "Georgia",
+        "es": "Georgia",
+        "fr": "Géorgie",
+        "ja": "ジョージア",
+        "pt-BR": "Geórgia",
+        "ru": "Грузия",
+        "zh-CN": "格鲁吉亚"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "GF": {
+      "geoname_id": 3381670,
+      "names": {
+        "de": "Französisch-Guayana",
+        "en": "French Guiana",
+        "es": "Guayana Francesa",
+        "fr": "Guyane",
+        "ja": "フランス領ギアナ",
+        "pt-BR": "Guiana Francesa",
+        "ru": "Французская Гвиана",
+        "zh-CN": "法属圭亚那"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "GG": {
+      "geoname_id": 3042362,
+      "names": {
+        "de": "Guernsey",
+        "en": "Guernsey",
+        "es": "Guernsey",
+        "fr": "Guernesey",
+        "ja": "ガーンジー",
+        "pt-BR": "Guernsey",
+        "ru": "Гернси",
+        "zh-CN": "根西"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "GH": {
+      "geoname_id": 2300660,
+      "names": {
+        "de": "Ghana",
+        "en": "Ghana",
+        "es": "Ghana",
+        "fr": "Ghana",
+        "ja": "ガーナ",
+        "pt-BR": "Gana",
+        "ru": "Гана",
+        "zh-CN": "加纳"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "GI": {
+      "geoname_id": 2411586,
+      "names": {
+        "de": "Gibraltar",
+        "en": "Gibraltar",
+        "es": "Gibraltar",
+        "fr": "Gibraltar",
+        "ja": "ジブラルタル",
+        "pt-BR": "Gibraltar",
+        "ru": "Гибралтар",
+        "zh-CN": "直布罗陀"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "GL": {
+      "geoname_id": 3425505,
+      "names": {
+        "de": "Grönland",
+        "en": "Greenland",
+        "es": "Groenlandia",
+        "fr": "Groenland",
+        "ja": "グリーンランド",
+        "pt-BR": "Groelândia",
+        "ru": "Гренландия",
+        "zh-CN": "格陵兰"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "GM": {
+      "geoname_id": 2413451,
+      "names": {
+        "de": "Gambia",
+        "en": "The Gambia",
+        "es": "Gambia",
+        "fr": "Gambie",
+        "ja": "ガンビア",
+        "pt-BR": "Gâmbia",
+        "ru": "Гамбия",
+        "zh-CN": "冈比亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "GN": {
+      "geoname_id": 2420477,
+      "names": {
+        "de": "Guinea",
+        "en": "Guinea",
+        "es": "Guinea",
+        "fr": "Guinée",
+        "ja": "ギニア",
+        "pt-BR": "Guiné",
+        "ru": "Гвинея",
+        "zh-CN": "几内亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "GP": {
+      "geoname_id": 3579143,
+      "names": {
+        "de": "Guadeloupe",
+        "en": "Guadeloupe",
+        "es": "Guadalupe",
+        "fr": "Guadeloupe",
+        "ja": "グアドループ",
+        "pt-BR": "Guadalupe",
+        "ru": "Гваделупа",
+        "zh-CN": "瓜德罗普"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "GQ": {
+      "geoname_id": 2309096,
+      "names": {
+        "de": "Äquatorialguinea",
+        "en": "Equatorial Guinea",
+        "es": "Guinea Ecuatorial",
+        "fr": "Guinée équatoriale",
+        "ja": "赤道ギニア",
+        "pt-BR": "Guiné Equatorial",
+        "ru": "Экваториальная Гвинея",
+        "zh-CN": "赤道几内亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "GR": {
+      "geoname_id": 390903,
+      "names": {
+        "de": "Griechenland",
+        "en": "Greece",
+        "es": "Grecia",
+        "fr": "Grèce",
+        "ja": "ギリシャ",
+        "pt-BR": "Grécia",
+        "ru": "Греция",
+        "zh-CN": "希腊"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "GS": {
+      "geoname_id": 3474415,
+      "names": {
+        "de": "Südgeorgien und die Südlichen Sandwichinseln",
+        "en": "South Georgia and the South Sandwich Islands",
+        "es": "Islas Georgias del Sur y Sandwich del Sur",
+        "fr": "Géorgie du Sud-et-les Îles Sandwich du Sud",
+        "ja": "サウスジョージア・サウスサンドウィッチ諸島",
+        "pt-BR": "ilhas Geórgia do Sul e Sandwich do Sul",
+        "ru": "Южная Георгия и Южные Сандвичевы острова",
+        "zh-CN": "南乔治亚和南桑威奇群岛"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "GT": {
+      "geoname_id": 3595528,
+      "names": {
+        "de": "Guatemala",
+        "en": "Guatemala",
+        "es": "Guatemala",
+        "fr": "Guatemala",
+        "ja": "グアテマラ",
+        "pt-BR": "Guatemala",
+        "ru": "Гватемала",
+        "zh-CN": "危地马拉"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "GU": {
+      "geoname_id": 4043988,
+      "names": {
+        "de": "Guam",
+        "en": "Guam",
+        "es": "Guam",
+        "fr": "Guam",
+        "ja": "グアム",
+        "pt-BR": "Guam",
+        "ru": "Гуам",
+        "zh-CN": "关岛"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "GW": {
+      "geoname_id": 2372248,
+      "names": {
+        "de": "Guinea-Bissau",
+        "en": "Guinea-Bissau",
+        "es": "Guinea-Bisáu",
+        "fr": "Guinée-Bissau",
+        "ja": "ギニアビサウ共和国",
+        "pt-BR": "Guiné-Bissau",
+        "ru": "Гвинея-Бисау",
+        "zh-CN": "几内亚比绍"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "GY": {
+      "geoname_id": 3378535,
+      "names": {
+        "de": "Guyana",
+        "en": "Guyana",
+        "es": "Guyana",
+        "fr": "Guyana",
+        "ja": "ガイアナ",
+        "pt-BR": "Guiana",
+        "ru": "Гайана",
+        "zh-CN": "圭亚那"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "HK": {
+      "geoname_id": 1819730,
+      "names": {
+        "de": "Hongkong",
+        "en": "Hong Kong",
+        "es": "Hong Kong",
+        "fr": "Hong Kong",
+        "ja": "香港",
+        "pt-BR": "Hong Kong",
+        "ru": "Гонконг",
+        "zh-CN": "香港"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "HM": {
+      "geoname_id": 1547314,
+      "names": {
+        "de": "Heard und McDonaldinseln",
+        "en": "Heard Island and McDonald Islands",
+        "es": "Islas Heard y McDonald",
+        "fr": "îles Heard-et-MacDonald",
+        "ja": "ハード島とマクドナルド諸島",
+        "pt-BR": "Ilha Heard e Ilhas McDonald",
+        "ru": "Остров Херд и острова Макдональд",
+        "zh-CN": "赫德岛和麦克唐纳群岛"
+      },
+      "continent_code": "AN",
+      "is_in_european_union": false
+    },
+    "HN": {
+      "geoname_id": 3608932,
+      "names": {
+        "de": "Honduras",
+        "en": "Honduras",
+        "es": "Honduras",
+        "fr": "Honduras",
+        "ja": "ホンジュラス",
+        "pt-BR": "Honduras",
+        "ru": "Гондурас",
+        "zh-CN": "洪都拉斯"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "HR": {
+      "geoname_id": 3202326,
+      "names": {
+        "de": "Kroatien",
+        "en": "Croatia",
+        "es": "Croacia",
+        "fr": "Croatie",
+        "ja": "クロアチア",
+        "pt-BR": "Croácia",
+        "ru": "Хорватия",
+        "zh-CN": "克罗地亚"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "HT": {
+      "geoname_id": 3723988,
+      "names": {
+        "de": "Haiti",
+        "en": "Haiti",
+        "es": "Haití",
+        "fr": "Haïti",
+        "ja": "ハイチ",
+        "pt-BR": "Haiti",
+        "ru": "Гаити",
+        "zh-CN": "海地"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "HU": {
+      "geoname_id": 719819,
+      "names": {
+        "de": "Ungarn",
+        "en": "Hungary",
+        "es": "Hungría",
+        "fr": "Hongrie",
+        "ja": "ハンガリー",
+        "pt-BR": "Hungria",
+        "ru": "Венгрия",
+        "zh-CN": "匈牙利"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "ID": {
+      "geoname_id": 1643084,
+      "names": {
+        "de": "Indonesien",
+        "en": "Indonesia",
+        "es": "Indonesia",
+        "fr": "Indonésie",
+        "ja": "インドネシア",
+        "pt-BR": "Indonésia",
+        "ru": "Индонезия",
+        "zh-CN": "印度尼西亚"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "IE": {
+      "geoname_id": 2963597,
+      "names": {
+        "de": "Irland",
+        "en": "Ireland",
+        "es": "Irlanda",
+        "fr": "Irlande",
+        "ja": "アイルランド",
+        "pt-BR": "República da Irlanda",
+        "ru": "Ирландия",
+        "zh-CN": "爱尔兰"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "IL": {
+      "geoname_id": 294640,
+      "names": {
+        "de": "Israel",
+        "en": "Israel",
+        "es": "Israel",
+        "fr": "Israël",
+        "ja": "イスラエル",
+        "pt-BR": "Israel",
+        "ru": "Израиль",
+        "zh-CN": "以色列"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "IM": {
+      "geoname_id": 3042225,
+      "names": {
+        "de": "Isle of Man",
+        "en": "Isle of Man",
+        "es": "Isla de Man",
+        "fr": "Île de Man",
+        "ja": "マン島",
+        "pt-BR": "Ilha de Man",
+        "ru": "Остров Мэн",
+        "zh-CN": "马恩岛"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "IN": {
+      "geoname_id": 1269750,
+      "names": {
+        "de": "Indien",
+        "en": "India",
+        "es": "India",
+        "fr": "Inde",
+        "ja": "インド",
+        "pt-BR": "Índia",
+        "ru": "Индия",
+        "zh-CN": "印度"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "IO": {
+      "geoname_id": 1282588,
+      "names": {
+        "de": "Britisches Territorium im Indischen Ozean",
+        "en": "British Indian Ocean Territory",
+        "es": "Territorio Británico del Océano Índico",
+        "fr": "Territoire britannique de l’océan Indien",
+        "ja": "イギリス領インド洋地域",
+        "pt-BR": "Território Britânico do Oceano Índico",
+        "ru": "Британская территория в Индийском океане",
+        "zh-CN": "英属印度洋领地"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "IQ": {
+      "geoname_id": 99237,
+      "names": {
+        "de": "Irak",
+        "en": "Iraq",
+        "es": "Irak",
+        "fr": "Irak",
+        "ja": "イラク",
+        "pt-BR": "Iraque",
+        "ru": "Ирак",
+        "zh-CN": "伊拉克"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "IR": {
+      "geoname_id": 130758,
+      "names": {
+        "de": "Iran",
+        "en": "Iran",
+        "es": "Irán",
+        "fr": "Iran",
+        "ja": "イラン",
+        "pt-BR": "Irã",
+        "ru": "Иран",
+        "zh-CN": "伊朗"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "IS": {
+      "geoname_id": 2629691,
+      "names": {
+        "de": "Island",
+        "en": "Iceland",
+        "es": "Islandia",
+        "fr": "Islande",
+        "ja": "アイスランド",
+        "pt-BR": "Islândia",
+        "ru": "Исландия",
+        "zh-CN": "冰岛"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "IT": {
+      "geoname_id": 3175395,
+      "names": {
+        "de": "Italien",
+        "en": "Italy",
+        "es": "Italia",
+        "fr": "Italie",
+        "ja": "イタリア",
+        "pt-BR": "Itália",
+        "ru": "Италия",
+        "zh-CN": "意大利"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "JE": {
+      "geoname_id": 3042142,
+      "names": {
+        "en": "Jersey",
+        "fr": "Jersey",
+        "ja": "ジャージー",
+        "ru": "Джерси",
+        "zh-CN": "泽西"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "JM": {
+      "geoname_id": 3489940,
+      "names": {
+        "de": "Jamaika",
+        "en": "Jamaica",
+        "es": "Jamaica",
+        "fr": "Jamaïque",
+        "ja": "ジャマイカ",
+        "pt-BR": "Jamaica",
+        "ru": "Ямайка",
+        "zh-CN": "牙买加"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "JO": {
+      "geoname_id": 248816,
+      "names": {
+        "de": "Jordanien",
+        "en": "Jordan",
+        "es": "Jordania",
+        "fr": "Jordanie",
+        "ja": "ヨルダン",
+        "pt-BR": "Jordânia",
+        "ru": "Иордания",
+        "zh-CN": "约旦"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "JP": {
+      "geoname_id": 1861060,
+      "names": {
+        "de": "Japan",
+        "en": "Japan",
+        "es": "Japón",
+        "fr": "Japon",
+        "ja": "日本",
+        "pt-BR": "Japão",
+        "ru": "Япония",
+        "zh-CN": "日本"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "KE": {
+      "geoname_id": 192950,
+      "names": {
+        "de": "Kenia",
+        "en": "Kenya",
+        "es": "Kenia",
+        "fr": "Kenya",
+        "ja": "ケニア",
+        "pt-BR": "Quênia",
+        "ru": "Кения",
+        "zh-CN": "肯尼亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "KG": {
+      "geoname_id": 1527747,
+      "names": {
+        "de": "Kirgisistan",
+        "en": "Kyrgyzstan",
+        "es": "Kirguistán",
+        "fr": "Kirghizistan",
+        "ja": "キルギス",
+        "pt-BR": "Quirguistão",
+        "ru": "Кыргызстан",
+        "zh-CN": "吉尔吉斯斯坦"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "KH": {
+      "geoname_id": 1831722,
+      "names": {
+        "de": "Kambodscha",
+        "en": "Cambodia",
+        "es": "Camboya",
+        "fr": "Cambodge",
+        "ja": "カンボジア",
+        "pt-BR": "Camboja",
+        "ru": "Камбоджа",
+        "zh-CN": "柬埔寨"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "KI": {
+      "geoname_id": 4030945,
+      "names": {
+        "de": "Kiribati",
+        "en": "Kiribati",
+        "es": "Kiribati",
+        "fr": "Kiribati",
+        "ja": "キリバス",
+        "pt-BR": "Quiribáti",
+        "ru": "Кирибати",
+        "zh-CN": "基里巴斯"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "KM": {
+      "geoname_id": 921929,
+      "names": {
+        "de": "Komoren",
+        "en": "Comoros",
+        "es": "Comoras",
+        "fr": "Comores",
+        "ja": "コモロ",
+        "pt-BR": "Comores",
+        "ru": "Коморы",
+        "zh-CN": "科摩罗"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "KN": {
+      "geoname_id": 3575174,
+      "names": {
+        "de": "St. Kitts und Nevis",
+        "en": "Saint Kitts and Nevis",
+        "es": "San Cristóbal y Nieves",
+        "fr": "Saint-Christophe-et-Niévès",
+        "ja": "セントクリストファー・ネイビス",
+        "pt-BR": "São Cristóvão e Neves",
+        "ru": "Сент-Китс и Невис",
+        "zh-CN": "圣基茨和尼维斯"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "KP": {
+      "geoname_id": 1873107,
+      "names": {
+        "de": "Nordkorea",
+        "en": "North Korea",
+        "es": "Corea del Norte",
+        "fr": "Corée du Nord",
+        "ja": "朝鮮民主主義人民共和国",
+        "pt-BR": "Coreia do Norte",
+        "ru": "КНДР",
+        "zh-CN": "朝鲜民主主义人民共和国"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "KR": {
+      "geoname_id": 1835841,
+      "names": {
+        "de": "Südkorea",
+        "en": "South Korea",
+        "es": "Corea del Sur",
+        "fr": "Corée du Sud",
+        "ja": "大韓民国",
+        "pt-BR": "Coreia do Sul",
+        "ru": "Республика Корея",
+        "zh-CN": "大韩民国"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "KW": {
+      "geoname_id": 285570,
+      "names": {
+        "de": "Kuwait",
+        "en": "Kuwait",
+        "es": "Kuwait",
+        "fr": "Koweït",
+        "ja": "クウェート",
+        "pt-BR": "Kuwait",
+        "ru": "Кувейт",
+        "zh-CN": "科威特"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "KY": {
+      "geoname_id": 3580718,
+      "names": {
+        "de": "Cayman Islands",
+        "en": "Cayman Islands",
+        "es": "Islas Caimán",
+        "fr": "îles Caïmans",
+        "ja": "ケイマン諸島",
+        "pt-BR": "Ilhas Caimã",
+        "ru": "Каймановы Острова",
+        "zh-CN": "开曼群岛"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "KZ": {
+      "geoname_id": 1522867,
+      "names": {
+        "de": "Kasachstan",
+        "en": "Kazakhstan",
+        "es": "Kazajistán",
+        "fr": "Kazakhstan",
+        "ja": "カザフスタン",
+        "pt-BR": "Cazaquistão",
+        "ru": "Казахстан",
+        "zh-CN": "哈萨克斯坦"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "LA": {
+      "geoname_id": 1655842,
+      "names": {
+        "de": "Laos",
+        "en": "Laos",
+        "es": "Laos",
+        "fr": "Laos",
+        "ja": "ラオス",
+        "pt-BR": "Laos",
+        "ru": "Лаос",
+        "zh-CN": "老挝"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "LB": {
+      "geoname_id": 272103,
+      "names": {
+        "de": "Libanon",
+        "en": "Lebanon",
+        "es": "Líbano",
+        "fr": "Liban",
+        "ja": "レバノン",
+        "pt-BR": "Líbano",
+        "ru": "Ливан",
+        "zh-CN": "黎巴嫩"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "LC": {
+      "geoname_id": 3576468,
+      "names": {
+        "de": "St. Lucia",
+        "en": "Saint Lucia",
+        "es": "Santa Lucía",
+        "fr": "Sainte-Lucie",
+        "ja": "セントルシア",
+        "pt-BR": "Santa Lúcia",
+        "ru": "Сент-Люсия",
+        "zh-CN": "圣卢西亚"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "LI": {
+      "geoname_id": 3042058,
+      "names": {
+        "de": "Liechtenstein",
+        "en": "Liechtenstein",
+        "es": "Liechtenstein",
+        "fr": "Liechtenstein",
+        "ja": "リヒテンシュタイン",
+        "pt-BR": "Liechtenstein",
+        "ru": "Лихтенштейн",
+        "zh-CN": "列支敦士登"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "LK": {
+      "geoname_id": 1227603,
+      "names": {
+        "de": "Sri Lanka",
+        "en": "Sri Lanka",
+        "es": "Sri Lanka",
+        "fr": "Sri Lanka",
+        "ja": "スリランカ",
+        "pt-BR": "Sri Lanka",
+        "ru": "Шри-Ланка",
+        "zh-CN": "斯里兰卡"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "LR": {
+      "geoname_id": 2275384,
+      "names": {
+        "de": "Liberia",
+        "en": "Liberia",
+        "es": "Liberia",
+        "fr": "Liberia",
+        "ja": "リベリア",
+        "pt-BR": "Libéria",
+        "ru": "Либерия",
+        "zh-CN": "利比里亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "LS": {
+      "geoname_id": 932692,
+      "names": {
+        "de": "Lesotho",
+        "en": "Lesotho",
+        "es": "Lesoto",
+        "fr": "Lesotho",
+        "ja": "レソト",
+        "pt-BR": "Lesoto",
+        "ru": "Лесото",
+        "zh-CN": "莱索托"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "LT": {
+      "geoname_id": 597427,
+      "names": {
+        "de": "Litauen",
+        "en": "Lithuania",
+        "es": "Lituania",
+        "fr": "Lituanie",
+        "ja": "リトアニア",
+        "pt-BR": "Lituânia",
+        "ru": "Литва",
+        "zh-CN": "立陶宛"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "LU": {
+      "geoname_id": 2960313,
+      "names": {
+        "de": "Luxemburg",
+        "en": "Luxembourg",
+        "es": "Luxemburgo",
+        "fr": "Luxembourg",
+        "ja": "ルクセンブルク",
+        "pt-BR": "Luxemburgo",
+        "ru": "Люксембург",
+        "zh-CN": "卢森堡"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "LV": {
+      "geoname_id": 458258,
+      "names": {
+        "de": "Lettland",
+        "en": "Latvia",
+        "es": "Letonia",
+        "fr": "Lettonie",
+        "ja": "ラトビア",
+        "pt-BR": "Letônia",
+        "ru": "Латвия",
+        "zh-CN": "拉脱维亚"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "LY": {
+      "geoname_id": 2215636,
+      "names": {
+        "de": "Libyen",
+        "en": "Libya",
+        "es": "Libia",
+        "fr": "Libye",
+        "ja": "リビア",
+        "pt-BR": "Líbia",
+        "ru": "Ливия",
+        "zh-CN": "利比亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "MA": {
+      "geoname_id": 2542007,
+      "names": {
+        "de": "Marokko",
+        "en": "Morocco",
+        "es": "Marruecos",
+        "fr": "Maroc",
+        "ja": "モロッコ",
+        "pt-BR": "Marrocos",
+        "ru": "Марокко",
+        "zh-CN": "摩洛哥"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "MC": {
+      "geoname_id": 2993457,
+      "names": {
+        "de": "Monaco",
+        "en": "Monaco",
+        "es": "Mónaco",
+        "fr": "Monaco",
+        "ja": "モナコ",
+        "pt-BR": "Mônaco",
+        "ru": "Монако",
+        "zh-CN": "摩纳哥"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "MD": {
+      "geoname_id": 617790,
+      "names": {
+        "de": "Moldau",
+        "en": "Moldova",
+        "es": "Moldavia",
+        "fr": "Moldavie",
+        "ja": "モルドバ",
+        "pt-BR": "Moldávia",
+        "ru": "Молдова",
+        "zh-CN": "摩尔多瓦"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "ME": {
+      "geoname_id": 3194884,
+      "names": {
+        "de": "Montenegro",
+        "en": "Montenegro",
+        "es": "Montenegro",
+        "fr": "Monténégro",
+        "ja": "モンテネグロ",
+        "pt-BR": "Montenegro",
+        "ru": "Черногория",
+        "zh-CN": "黑山"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "MF": {
+      "geoname_id": 3578421,
+      "names": {
+        "de": "Saint-Martin",
+        "en": "Saint-Martin",
+        "es": "San Martín",
+        "fr": "Saint-Martin",
+        "ja": "サン・マルタン",
+        "pt-BR": "São Martinho",
+        "ru": "Сен-Мартен",
+        "zh-CN": "法属圣马丁"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "MG": {
+      "geoname_id": 1062947,
+      "names": {
+        "de": "Madagaskar",
+        "en": "Madagascar",
+        "es": "Madagascar",
+        "fr": "Madagascar",
+        "ja": "マダガスカル",
+        "pt-BR": "Madagascar",
+        "ru": "Мадагаскар",
+        "zh-CN": "马达加斯加"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "MH": {
+      "geoname_id": 2080185,
+      "names": {
+        "de": "Marshallinseln",
+        "en": "Marshall Islands",
+        "es": "Islas Marshall",
+        "fr": "Îles Marshall",
+        "ja": "マーシャル諸島",
+        "pt-BR": "Ilhas Marshall",
+        "ru": "Маршалловы Острова",
+        "zh-CN": "马绍尔群岛"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "MK": {
+      "geoname_id": 718075,
+      "names": {
+        "de": "Nordmazedonien",
+        "en": "North Macedonia",
+        "es": "Macedonia del Norte",
+        "fr": "Macédoine du Nord",
+        "ja": "北マケドニア",
+        "pt-BR": "Macedônia do Norte",
+        "ru": "Северная Македония",
+        "zh-CN": "北马其顿"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "ML": {
+      "geoname_id": 2453866,
+      "names": {
+        "de": "Mali",
+        "en": "Mali",
+        "es": "Mali",
+        "fr": "Mali",
+        "ja": "マリ共和国",
+        "pt-BR": "Mali",
+        "ru": "Мали",
+        "zh-CN": "马里共和国"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "MM": {
+      "geoname_id": 1327865,
+      "names": {
+        "de": "Myanmar",
+        "en": "Myanmar",
+        "es": "Birmania",
+        "fr": "Birmanie",
+        "ja": "ミャンマー",
+        "pt-BR": "Birmânia",
+        "ru": "Мьянма",
+        "zh-CN": "缅甸"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "MN": {
+      "geoname_id": 2029969,
+      "names": {
+        "de": "Mongolei",
+        "en": "Mongolia",
+        "es": "Mongolia",
+        "fr": "Mongolie",
+        "ja": "モンゴル国",
+        "pt-BR": "Mongólia",
+        "ru": "Монголия",
+        "zh-CN": "蒙古国"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "MO": {
+      "geoname_id": 1821275,
+      "names": {
+        "de": "Macau",
+        "en": "Macau",
+        "es": "Macao",
+        "fr": "Macao",
+        "ja": "マカオ",
+        "pt-BR": "Macau",
+        "ru": "Макао",
+        "zh-CN": "澳门"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "MP": {
+      "geoname_id": 4041468,
+      "names": {
+        "de": "Nördliche Marianen",
+        "en": "Northern Mariana Islands",
+        "es": "Islas Marianas del Norte",
+        "fr": "îles Mariannes du Nord",
+        "ja": "北マリアナ諸島",
+        "pt-BR": "Marianas Setentrionais",
+        "ru": "Северные Марианские Острова",
+        "zh-CN": "北马里亚纳群岛"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "MQ": {
+      "geoname_id": 3570311,
+      "names": {
+        "de": "Martinique",
+        "en": "Martinique",
+        "es": "Martinica",
+        "fr": "Martinique",
+        "ja": "マルティニーク",
+        "pt-BR": "Martinica",
+        "ru": "Мартиника",
+        "zh-CN": "马提尼克"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "MR": {
+      "geoname_id": 2378080,
+      "names": {
+        "de": "Mauretanien",
+        "en": "Mauritania",
+        "es": "Mauritania",
+        "fr": "Mauritanie",
+        "ja": "モーリタニア",
+        "pt-BR": "Mauritânia",
+        "ru": "Мавритания",
+        "zh-CN": "毛里塔尼亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "MS": {
+      "geoname_id": 3578097,
+      "names": {
+        "de": "Montserrat",
+        "en": "Montserrat",
+        "es": "Montserrat",
+        "fr": "Montserrat",
+        "ja": "モントセラト",
+        "pt-BR": "Montserrat",
+        "ru": "Монтсеррат",
+        "zh-CN": "蒙特塞拉特"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "MT": {
+      "geoname_id": 2562770,
+      "names": {
+        "de": "Malta",
+        "en": "Malta",
+        "es": "Malta",
+        "fr": "Malte",
+        "ja": "マルタ",
+        "pt-BR": "Malta",
+        "ru": "Мальта",
+        "zh-CN": "马耳他"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "MU": {
+      "geoname_id": 934292,
+      "names": {
+        "de": "Mauritius",
+        "en": "Mauritius",
+        "es": "Mauricio",
+        "fr": "Maurice",
+        "ja": "モーリシャス",
+        "pt-BR": "Maurício",
+        "ru": "Маврикий",
+        "zh-CN": "毛里求斯"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "MV": {
+      "geoname_id": 1282028,
+      "names": {
+        "de": "Malediven",
+        "en": "Maldives",
+        "es": "Maldivas",
+        "fr": "Maldives",
+        "ja": "モルディブ",
+        "pt-BR": "Maldivas",
+        "ru": "Мальдивы",
+        "zh-CN": "马尔代夫"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "MW": {
+      "geoname_id": 927384,
+      "names": {
+        "de": "Malawi",
+        "en": "Malawi",
+        "es": "Malaui",
+        "fr": "Malawi",
+        "ja": "マラウイ",
+        "pt-BR": "Malawi",
+        "ru": "Малави",
+        "zh-CN": "马拉维"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "MX": {
+      "geoname_id": 3996063,
+      "names": {
+        "de": "Mexiko",
+        "en": "Mexico",
+        "es": "México",
+        "fr": "Mexique",
+        "ja": "メキシコ",
+        "pt-BR": "México",
+        "ru": "Мексика",
+        "zh-CN": "墨西哥"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "MY": {
+      "geoname_id": 1733045,
+      "names": {
+        "de": "Malaysia",
+        "en": "Malaysia",
+        "es": "Malasia",
+        "fr": "Malaisie",
+        "ja": "マレーシア",
+        "pt-BR": "Malásia",
+        "ru": "Малайзия",
+        "zh-CN": "马来西亚"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "MZ": {
+      "geoname_id": 1036973,
+      "names": {
+        "de": "Mosambik",
+        "en": "Mozambique",
+        "es": "Mozambique",
+        "fr": "Mozambique",
+        "ja": "モザンビーク",
+        "pt-BR": "Moçambique",
+        "ru": "Мозамбик",
+        "zh-CN": "莫桑比克"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "NA": {
+      "geoname_id": 3355338,
+      "names": {
+        "de": "Namibia",
+        "en": "Namibia",
+        "es": "Namibia",
+        "fr": "Namibie",
+        "ja": "ナミビア",
+        "pt-BR": "Namíbia",
+        "ru": "Намибия",
+        "zh-CN": "纳米比亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "NC": {
+      "geoname_id": 2139685,
+      "names": {
+        "de": "Neukaledonien",
+        "en": "New Caledonia",
+        "es": "Nueva Caledonia",
+        "fr": "Nouvelle-Calédonie",
+        "ja": "ニューカレドニア",
+        "pt-BR": "Nova Caledônia",
+        "ru": "Новая Каледония",
+        "zh-CN": "新喀里多尼亚"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "NE": {
+      "geoname_id": 2440476,
+      "names": {
+        "de": "Niger",
+        "en": "Niger",
+        "es": "Níger",
+        "fr": "Niger",
+        "ja": "ニジェール",
+        "pt-BR": "Níger",
+        "ru": "Нигер",
+        "zh-CN": "尼日尔"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "NF": {
+      "geoname_id": 2155115,
+      "names": {
+        "de": "Norfolkinsel",
+        "en": "Norfolk Island",
+        "es": "Isla Norfolk",
+        "fr": "île Norfolk",
+        "ja": "ノーフォーク島",
+        "pt-BR": "Ilha Norfolk",
+        "ru": "Норфолк",
+        "zh-CN": "诺福克岛"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "NG": {
+      "geoname_id": 2328926,
+      "names": {
+        "de": "Nigeria",
+        "en": "Nigeria",
+        "es": "Nigeria",
+        "fr": "Nigeria",
+        "ja": "ナイジェリア",
+        "pt-BR": "Nigéria",
+        "ru": "Нигерия",
+        "zh-CN": "尼日利亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "NI": {
+      "geoname_id": 3617476,
+      "names": {
+        "de": "Nicaragua",
+        "en": "Nicaragua",
+        "es": "Nicaragua",
+        "fr": "Nicaragua",
+        "ja": "ニカラグア",
+        "pt-BR": "Nicarágua",
+        "ru": "Никарагуа",
+        "zh-CN": "尼加拉瓜"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "NL": {
+      "geoname_id": 0,
+      "names": {
+        "de": "Königreich der Niederlande",
+        "en": "Kingdom of the Netherlands",
+        "es": "Reino de los Países Bajos",
+        "fr": "Royaume des Pays-Bas",
+        "ja": "オランダ王国",
+        "pt-BR": "Reino dos Países Baixos",
+        "ru": "Королевство Нидерландов",
+        "zh-CN": "荷兰王国"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "NO": {
+      "geoname_id": 3144096,
+      "names": {
+        "de": "Norwegen",
+        "en": "Norway",
+        "es": "Noruega",
+        "fr": "Norvège",
+        "ja": "ノルウェー王国",
+        "pt-BR": "Noruega",
+        "ru": "Норвегия",
+        "zh-CN": "挪威"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "NP": {
+      "geoname_id": 1282988,
+      "names": {
+        "de": "Nepal",
+        "en": "Nepal",
+        "es": "Nepal",
+        "fr": "Népal",
+        "ja": "ネパール",
+        "pt-BR": "Nepal",
+        "ru": "Непал",
+        "zh-CN": "尼泊尔"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "NR": {
+      "geoname_id": 2110425,
+      "names": {
+        "de": "Nauru",
+        "en": "Nauru",
+        "es": "Nauru",
+        "fr": "Nauru",
+        "ja": "ナウル",
+        "pt-BR": "Nauru",
+        "ru": "Науру",
+        "zh-CN": "瑙鲁"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "NU": {
+      "geoname_id": 4036232,
+      "names": {
+        "de": "Niue",
+        "en": "Niue",
+        "es": "Niue",
+        "fr": "Niue",
+        "ja": "ニウエ",
+        "pt-BR": "Niue",
+        "ru": "Ниуэ",
+        "zh-CN": "纽埃"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "NZ": {
+      "geoname_id": 2186224,
+      "names": {
+        "de": "Neuseeland",
+        "en": "New Zealand",
+        "es": "Nueva Zelanda",
+        "fr": "Nouvelle-Zélande",
+        "ja": "ニュージーランド",
+        "pt-BR": "Nova Zelândia",
+        "ru": "Новая Зеландия",
+        "zh-CN": "新西兰"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "OM": {
+      "geoname_id": 286963,
+      "names": {
+        "de": "Oman",
+        "en": "Oman",
+        "es": "Omán",
+        "fr": "Oman",
+        "ja": "オマーン",
+        "pt-BR": "Omã",
+        "ru": "Оман",
+        "zh-CN": "阿曼"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "PA": {
+      "geoname_id": 3703430,
+      "names": {
+        "de": "Panama",
+        "en": "Panama",
+        "es": "Panamá",
+        "fr": "Panama",
+        "ja": "パナマ",
+        "pt-BR": "Panamá",
+        "ru": "Панама",
+        "zh-CN": "巴拿马"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "PE": {
+      "geoname_id": 3932488,
+      "names": {
+        "de": "Peru",
+        "en": "Peru",
+        "es": "Perú",
+        "fr": "Pérou",
+        "ja": "ペルー",
+        "pt-BR": "Peru",
+        "ru": "Перу",
+        "zh-CN": "秘鲁"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "PF": {
+      "geoname_id": 4030656,
+      "names": {
+        "de": "Französisch-Polynesien",
+        "en": "French Polynesia",
+        "es": "Polinesia Francesa",
+        "fr": "Polynésie française",
+        "ja": "フランス領ポリネシア",
+        "pt-BR": "Polinésia Francesa",
+        "ru": "Французская Полинезия",
+        "zh-CN": "法属波利尼西亚"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "PG": {
+      "geoname_id": 2088628,
+      "names": {
+        "de": "Papua-Neuguinea",
+        "en": "Papua New Guinea",
+        "es": "Papúa Nueva Guinea",
+        "fr": "Papouasie-Nouvelle-Guinée",
+        "ja": "パプアニューギニア",
+        "pt-BR": "Papua-Nova Guiné",
+        "ru": "Папуа — Новая Гвинея",
+        "zh-CN": "巴布亚新几内亚"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "PH": {
+      "geoname_id": 1694008,
+      "names": {
+        "de": "Philippinen",
+        "en": "Philippines",
+        "es": "Filipinas",
+        "fr": "Philippines",
+        "ja": "フィリピン",
+        "pt-BR": "Filipinas",
+        "ru": "Филиппины",
+        "zh-CN": "菲律宾"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "PK": {
+      "geoname_id": 1168579,
+      "names": {
+        "de": "Pakistan",
+        "en": "Pakistan",
+        "es": "Pakistán",
+        "fr": "Pakistan",
+        "ja": "パキスタン",
+        "pt-BR": "Paquistão",
+        "ru": "Пакистан",
+        "zh-CN": "巴基斯坦"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "PL": {
+      "geoname_id": 798544,
+      "names": {
+        "de": "Polen",
+        "en": "Poland",
+        "es": "Polonia",
+        "fr": "Pologne",
+        "ja": "ポーランド",
+        "pt-BR": "Polônia",
+        "ru": "Польша",
+        "zh-CN": "波兰"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "PM": {
+      "geoname_id": 3424932,
+      "names": {
+        "de": "Saint-Pierre und Miquelon",
+        "en": "Saint Pierre and Miquelon",
+        "es": "San Pedro y Miquelón",
+        "fr": "Saint-Pierre-et-Miquelon",
+        "ja": "サンピエール島・ミクロン島",
+        "pt-BR": "Saint-Pierre e Miquelon",
+        "ru": "Сен-Пьер и Микелон",
+        "zh-CN": "圣皮埃尔和密克隆"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "PN": {
+      "geoname_id": 4030699,
+      "names": {
+        "de": "Pitcairninseln",
+        "en": "Pitcairn Islands",
+        "es": "Islas Pitcairn",
+        "fr": "îles Pitcairn",
+        "ja": "ピトケアン諸島",
+        "pt-BR": "Ilhas Pitcairn",
+        "ru": "Острова Питкэрн",
+        "zh-CN": "皮特凯恩群岛"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "PR": {
+      "geoname_id": 4566966,
+      "names": {
+        "de": "Puerto Rico",
+        "en": "Puerto Rico",
+        "es": "Puerto Rico",
+        "fr": "Porto Rico",
+        "ja": "プエルトリコ",
+        "pt-BR": "Porto Rico",
+        "ru": "Пуэрто-Рико",
+        "zh-CN": "波多黎各"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "PS": {
+      "geoname_id": 6254930,
+      "names": {
+        "de": "Palästina",
+        "en": "Palestine",
+        "es": "Palestina",
+        "fr": "État de Palestine",
+        "ja": "パレスチナ国",
+        "pt-BR": "Estado da Palestina",
+        "ru": "Государство Палестина",
+        "zh-CN": "巴勒斯坦"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "PT": {
+      "geoname_id": 2264397,
+      "names": {
+        "de": "Portugal",
+        "en": "Portugal",
+        "es": "Portugal",
+        "fr": "Portugal",
+        "ja": "ポルトガル",
+        "pt-BR": "Portugal",
+        "ru": "Португалия",
+        "zh-CN": "葡萄牙"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "PW": {
+      "geoname_id": 1559582,
+      "names": {
+        "de": "Palau",
+        "en": "Palau",
+        "es": "Palaos",
+        "fr": "Palaos",
+        "ja": "パラオ",
+        "pt-BR": "Palau",
+        "ru": "Палау",
+        "zh-CN": "帕劳"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "PY": {
+      "geoname_id": 3437598,
+      "names": {
+        "de": "Paraguay",
+        "en": "Paraguay",
+        "es": "Paraguay",
+        "fr": "Paraguay",
+        "ja": "パラグアイ",
+        "pt-BR": "Paraguai",
+        "ru": "Парагвай",
+        "zh-CN": "巴拉圭"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "QA": {
+      "geoname_id": 289688,
+      "names": {
+        "de": "Katar",
+        "en": "Qatar",
+        "es": "Catar",
+        "fr": "Qatar",
+        "ja": "カタール",
+        "pt-BR": "Catar",
+        "ru": "Катар",
+        "zh-CN": "卡塔尔"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "RE": {
+      "geoname_id": 935317,
+      "names": {
+        "de": "Réunion",
+        "en": "Réunion",
+        "es": "Reunión",
+        "fr": "La Réunion",
+        "ja": "レユニオン",
+        "pt-BR": "Reunião",
+        "ru": "Реюньон",
+        "zh-CN": "留尼汪"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "RO": {
+      "geoname_id": 798549,
+      "names": {
+        "de": "Rumänien",
+        "en": "Romania",
+        "es": "Rumania",
+        "fr": "Roumanie",
+        "ja": "ルーマニア",
+        "pt-BR": "Romênia",
+        "ru": "Румыния",
+        "zh-CN": "罗马尼亚"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "RS": {
+      "geoname_id": 6290252,
+      "names": {
+        "de": "Serbien",
+        "en": "Serbia",
+        "es": "Serbia",
+        "fr": "Serbie",
+        "ja": "セルビア",
+        "pt-BR": "Sérvia",
+        "ru": "Сербия",
+        "zh-CN": "塞尔维亚"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "RU": {
+      "geoname_id": 2017370,
+      "names": {
+        "de": "Russland",
+        "en": "Russia",
+        "es": "Rusia",
+        "fr": "Russie",
+        "ja": "ロシア",
+        "pt-BR": "Rússia",
+        "ru": "Россия",
+        "zh-CN": "俄罗斯"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "RW": {
+      "geoname_id": 49518,
+      "names": {
+        "de": "Ruanda",
+        "en": "Rwanda",
+        "es": "Ruanda",
+        "fr": "Rwanda",
+        "ja": "ルワンダ",
+        "pt-BR": "Ruanda",
+        "ru": "Руанда",
+        "zh-CN": "卢旺达"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "SA": {
+      "geoname_id": 102358,
+      "names": {
+        "de": "Saudi-Arabien",
+        "en": "Saudi Arabia",
+        "es": "Arabia Saudí",
+        "fr": "Arabie saoudite",
+        "ja": "サウジアラビア",
+        "pt-BR": "Arábia Saudita",
+        "ru": "Саудовская Аравия",
+        "zh-CN": "沙特阿拉伯"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "SB": {
+      "geoname_id": 2103350,
+      "names": {
+        "de": "Salomonen",
+        "en": "Solomon Islands",
+        "es": "Islas Salomón",
+        "fr": "Îles Salomon",
+        "ja": "ソロモン諸島",
+        "pt-BR": "Ilhas Salomão",
+        "ru": "Соломоновы Острова",
+        "zh-CN": "所罗门群岛"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "SC": {
+      "geoname_id": 241170,
+      "names": {
+        "de": "Seychellen",
+        "en": "Seychelles",
+        "es": "Seychelles",
+        "fr": "Seychelles",
+        "ja": "セーシェル",
+        "pt-BR": "Seicheles",
+        "ru": "Сейшельские Острова",
+        "zh-CN": "塞舌尔"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "SD": {
+      "geoname_id": 366755,
+      "names": {
+        "de": "Sudan",
+        "en": "Sudan",
+        "es": "Sudán",
+        "fr": "Soudan",
+        "ja": "スーダン",
+        "pt-BR": "Sudão",
+        "ru": "Судан",
+        "zh-CN": "苏丹"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "SE": {
+      "geoname_id": 2661886,
+      "names": {
+        "de": "Schweden",
+        "en": "Sweden",
+        "es": "Suecia",
+        "fr": "Suède",
+        "ja": "スウェーデン",
+        "pt-BR": "Suécia",
+        "ru": "Швеция",
+        "zh-CN": "瑞典"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "SG": {
+      "geoname_id": 1880251,
+      "names": {
+        "de": "Singapur",
+        "en": "Singapore",
+        "es": "Singapur",
+        "fr": "Singapour",
+        "ja": "シンガポール",
+        "pt-BR": "Singapura",
+        "ru": "Сингапур",
+        "zh-CN": "新加坡"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "SH": {
+      "geoname_id": 3370751,
+      "names": {
+        "de": "St. Helena, Ascension und Tristan da Cunha",
+        "en": "Saint Helena, Ascension and Tristan da Cunha",
+        "es": "Santa Elena, Ascensión y Tristán de Acuña",
+        "fr": "Sainte-Hélène, Ascension et Tristan da Cunha",
+        "ja": "セントヘレナ・アセンションおよびトリスタンダクーニャ",
+        "pt-BR": "Santa Helena, Ascensão e Tristão da Cunha",
+        "ru": "Острова Святой Елены, Вознесения и Тристан-да-Кунья",
+        "zh-CN": "圣赫勒拿、阿森松和特里斯坦-达库尼亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "SI": {
+      "geoname_id": 3190538,
+      "names": {
+        "de": "Slowenien",
+        "en": "Slovenia",
+        "es": "Eslovenia",
+        "fr": "Slovénie",
+        "ja": "スロベニア",
+        "pt-BR": "Eslovênia",
+        "ru": "Словения",
+        "zh-CN": "斯洛文尼亚"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "SJ": {
+      "geoname_id": 607072,
+      "names": {
+        "de": "Svalbard und Jan Mayen",
+        "en": "Svalbard and Jan Mayen",
+        "es": "Svalbard y Jan Mayen",
+        "fr": "Svalbard et Jan Mayen",
+        "ja": "スヴァールバル諸島およびヤンマイエン島",
+        "pt-BR": "Svalbard e Jan Mayen",
+        "ru": "Шпицберген и Ян-Майен",
+        "zh-CN": "斯瓦尔巴和扬马延"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "SK": {
+      "geoname_id": 3057568,
+      "names": {
+        "de": "Slowakei",
+        "en": "Slovakia",
+        "es": "Eslovaquia",
+        "fr": "Slovaquie",
+        "ja": "スロバキア",
+        "pt-BR": "Eslováquia",
+        "ru": "Словакия",
+        "zh-CN": "斯洛伐克"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": true
+    },
+    "SL": {
+      "geoname_id": 2403846,
+      "names": {
+        "de": "Sierra Leone",
+        "en": "Sierra Leone",
+        "es": "Sierra Leona",
+        "fr": "Sierra Leone",
+        "ja": "シエラレオネ",
+        "pt-BR": "Serra Leoa",
+        "ru": "Сьерра-Леоне",
+        "zh-CN": "塞拉利昂"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "SM": {
+      "geoname_id": 3168068,
+      "names": {
+        "de": "San Marino",
+        "en": "San Marino",
+        "es": "San Marino",
+        "fr": "Saint-Marin",
+        "ja": "サンマリノ",
+        "pt-BR": "San Marino",
+        "ru": "Сан-Марино",
+        "zh-CN": "圣马力诺"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "SN": {
+      "geoname_id": 2245662,
+      "names": {
+        "de": "Senegal",
+        "en": "Senegal",
+        "es": "Senegal",
+        "fr": "Sénégal",
+        "ja": "セネガル",
+        "pt-BR": "Senegal",
+        "ru": "Сенегал",
+        "zh-CN": "塞内加尔"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "SO": {
+      "geoname_id": 51537,
+      "names": {
+        "de": "Somalia",
+        "en": "Somalia",
+        "es": "Somalia",
+        "fr": "Somalie",
+        "ja": "ソマリア",
+        "pt-BR": "Somália",
+        "ru": "Сомали",
+        "zh-CN": "索马里"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "SR": {
+      "geoname_id": 3382998,
+      "names": {
+        "de": "Suriname",
+        "en": "Suriname",
+        "es": "Surinam",
+        "fr": "Suriname",
+        "ja": "スリナム",
+        "pt-BR": "Suriname",
+        "ru": "Суринам",
+        "zh-CN": "苏里南"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "SS": {
+      "geoname_id": 7909807,
+      "names": {
+        "de": "Südsudan",
+        "en": "South Sudan",
+        "es": "Sudán del Sur",
+        "fr": "Soudan du Sud",
+        "ja": "南スーダン",
+        "pt-BR": "Sudão do Sul",
+        "ru": "Южный Судан",
+        "zh-CN": "南苏丹"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "ST": {
+      "geoname_id": 2410758,
+      "names": {
+        "de": "São Tomé und Príncipe",
+        "en": "São Tomé and Príncipe",
+        "es": "Santo Tomé y Príncipe",
+        "fr": "Sao Tomé-et-Principe",
+        "ja": "サントメ・プリンシペ",
+        "pt-BR": "São Tomé e Príncipe",
+        "ru": "Сан-Томе и Принсипи",
+        "zh-CN": "圣多美和普林西比"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "SV": {
+      "geoname_id": 3585968,
+      "names": {
+        "de": "El Salvador",
+        "en": "El Salvador",
+        "es": "El Salvador",
+        "fr": "Salvador",
+        "ja": "エルサルバドル",
+        "pt-BR": "El Salvador",
+        "ru": "Сальвадор",
+        "zh-CN": "萨尔瓦多"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "SX": {
+      "geoname_id": 7609695,
+      "names": {
+        "de": "Sint Maarten",
+        "en": "Sint Maarten",
+        "es": "San Martín",
+        "fr": "Saint-Martin",
+        "ja": "シント・マールテン",
+        "pt-BR": "São Martinho",
+        "ru": "Синт-Мартен",
+        "zh-CN": "荷属圣马丁"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "SY": {
+      "geoname_id": 163843,
+      "names": {
+        "de": "Syrien",
+        "en": "Syria",
+        "es": "Siria",
+        "fr": "Syrie",
+        "ja": "シリア",
+        "pt-BR": "Síria",
+        "ru": "Сирия",
+        "zh-CN": "叙利亚"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "SZ": {
+      "geoname_id": 934841,
+      "names": {
+        "de": "Eswatini",
+        "en": "Eswatini",
+        "es": "Suazilandia",
+        "fr": "Eswatini",
+        "ja": "エスワティニ",
+        "pt-BR": "Essuatíni",
+        "ru": "Эсватини",
+        "zh-CN": "斯威士兰"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "TA": {
+      "geoname_id": 3370684,
+      "names": {
+        "en": "Tristan da Cunha",
+        "fr": "Île Tristan da Cunha",
+        "ja": "トリスタンダクーニャ",
+        "ru": "Острова Тристан-да-Кунья"
+      },
+      "continent_code": "",
+      "is_in_european_union": false
+    },
+    "TC": {
+      "geoname_id": 3576916,
+      "names": {
+        "de": "Turks- und Caicosinseln",
+        "en": "Turks and Caicos Islands",
+        "es": "Islas Turcas y Caicos",
+        "fr": "Îles Turques et Caïques",
+        "ja": "タークス・カイコス諸島",
+        "pt-BR": "Turks e Caicos",
+        "ru": "Тёркс и Кайкос",
+        "zh-CN": "特克斯和凯科斯群岛"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "TD": {
+      "geoname_id": 2434508,
+      "names": {
+        "de": "Tschad",
+        "en": "Chad",
+        "es": "Chad",
+        "fr": "Tchad",
+        "ja": "チャド",
+        "pt-BR": "Chade",
+        "ru": "Чад",
+        "zh-CN": "乍得"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "TF": {
+      "geoname_id": 1546748,
+      "names": {
+        "de": "Französische Süd- und Antarktisgebiete",
+        "en": "French Southern and Antarctic Lands",
+        "es": "Tierras Australes y Antárticas Francesas",
+        "fr": "Terres australes et antarctiques françaises",
+        "ja": "フランス領南方・南極地域",
+        "pt-BR": "Terras Austrais e Antárticas Francesas",
+        "ru": "Французские Южные и Антарктические территории",
+        "zh-CN": "法属南部和南极领地"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "TG": {
+      "geoname_id": 2363686,
+      "names": {
+        "de": "Togo",
+        "en": "Togo",
+        "es": "Togo",
+        "fr": "Togo",
+        "ja": "トーゴ",
+        "pt-BR": "Togo",
+        "ru": "Того",
+        "zh-CN": "多哥"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "TH": {
+      "geoname_id": 1605651,
+      "names": {
+        "de": "Thailand",
+        "en": "Thailand",
+        "es": "Tailandia",
+        "fr": "Thaïlande",
+        "ja": "タイ王国",
+        "pt-BR": "Tailândia",
+        "ru": "Таиланд",
+        "zh-CN": "泰国"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "TJ": {
+      "geoname_id": 1220409,
+      "names": {
+        "de": "Tadschikistan",
+        "en": "Tajikistan",
+        "es": "Tayikistán",
+        "fr": "Tadjikistan",
+        "ja": "タジキスタン",
+        "pt-BR": "Tajiquistão",
+        "ru": "Таджикистан",
+        "zh-CN": "塔吉克斯坦"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "TK": {
+      "geoname_id": 4031074,
+      "names": {
+        "de": "Tokelau",
+        "en": "Tokelau",
+        "es": "Tokelau",
+        "fr": "Tokelau",
+        "ja": "トケラウ",
+        "pt-BR": "Tokelau",
+        "ru": "Токелау",
+        "zh-CN": "托克劳"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "TL": {
+      "geoname_id": 1966436,
+      "names": {
+        "de": "Osttimor",
+        "en": "Timor-Leste",
+        "es": "Timor Oriental",
+        "fr": "Timor oriental",
+        "ja": "東ティモール",
+        "pt-BR": "Timor-Leste",
+        "ru": "Восточный Тимор",
+        "zh-CN": "东帝汶"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "TM": {
+      "geoname_id": 1218197,
+      "names": {
+        "de": "Turkmenistan",
+        "en": "Turkmenistan",
+        "es": "Turkmenistán",
+        "fr": "Turkménistan",
+        "ja": "トルクメニスタン",
+        "pt-BR": "Turquemenistão",
+        "ru": "Туркменистан",
+        "zh-CN": "土库曼斯坦"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "TN": {
+      "geoname_id": 2464461,
+      "names": {
+        "de": "Tunesien",
+        "en": "Tunisia",
+        "es": "Túnez",
+        "fr": "Tunisie",
+        "ja": "チュニジア",
+        "pt-BR": "Tunísia",
+        "ru": "Тунис",
+        "zh-CN": "突尼斯"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "TO": {
+      "geoname_id": 4032283,
+      "names": {
+        "de": "Tonga",
+        "en": "Tonga",
+        "es": "Tonga",
+        "fr": "Tonga",
+        "ja": "トンガ",
+        "pt-BR": "Tonga",
+        "ru": "Тонга",
+        "zh-CN": "汤加"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "TR": {
+      "geoname_id": 298795,
+      "names": {
+        "de": "Türkei",
+        "en": "Turkey",
+        "es": "Turquía",
+        "fr": "Turquie",
+        "ja": "トルコ",
+        "pt-BR": "Turquia",
+        "ru": "Турция",
+        "zh-CN": "土耳其"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "TT": {
+      "geoname_id": 3573591,
+      "names": {
+        "de": "Trinidad und Tobago",
+        "en": "Trinidad and Tobago",
+        "es": "Trinidad y Tobago",
+        "fr": "Trinité-et-Tobago",
+        "ja": "トリニダード・トバゴ",
+        "pt-BR": "Trindade e Tobago",
+        "ru": "Тринидад и Тобаго",
+        "zh-CN": "特立尼达和多巴哥"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "TV": {
+      "geoname_id": 2110297,
+      "names": {
+        "de": "Tuvalu",
+        "en": "Tuvalu",
+        "es": "Tuvalu",
+        "fr": "Tuvalu",
+        "ja": "ツバル",
+        "pt-BR": "Tuvalu",
+        "ru": "Тувалу",
+        "zh-CN": "图瓦卢"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "TW": {
+      "geoname_id": 1668284,
+      "names": {
+        "de": "Republik China",
+        "en": "Taiwan",
+        "es": "República de China",
+        "fr": "Taïwan",
+        "ja": "中華民国",
+        "pt-BR": "Taiwan",
+        "ru": "Китайская Республика (Тайвань)",
+        "zh-CN": "中华民国"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "TZ": {
+      "geoname_id": 149590,
+      "names": {
+        "de": "Tansania",
+        "en": "Tanzania",
+        "es": "Tanzania",
+        "fr": "Tanzanie",
+        "ja": "タンザニア",
+        "pt-BR": "Tanzânia",
+        "ru": "Танзания",
+        "zh-CN": "坦桑尼亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "UA": {
+      "geoname_id": 690791,
+      "names": {
+        "de": "Ukraine",
+        "en": "Ukraine",
+        "es": "Ucrania",
+        "fr": "Ukraine",
+        "ja": "ウクライナ",
+        "pt-BR": "Ucrânia",
+        "ru": "Украина",
+        "zh-CN": "乌克兰"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "UG": {
+      "geoname_id": 226074,
+      "names": {
+        "de": "Uganda",
+        "en": "Uganda",
+        "es": "Uganda",
+        "fr": "Ouganda",
+        "ja": "ウガンダ",
+        "pt-BR": "Uganda",
+        "ru": "Уганда",
+        "zh-CN": "乌干达"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "UM": {
+      "geoname_id": 5854968,
+      "names": {
+        "de": "Kleinere Amerikanische Überseeinseln",
+        "en": "United States Minor Outlying Islands",
+        "es": "Islas ultramarinas de Estados Unidos",
+        "fr": "îles mineures éloignées des États-Unis",
+        "ja": "合衆国領有小離島",
+        "pt-BR": "Ilhas Menores Distantes dos Estados Unidos",
+        "ru": "Внешние малые острова США",
+        "zh-CN": "美国本土外小岛屿"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "US": {
+      "geoname_id": 6252001,
+      "names": {
+        "de": "Vereinigte Staaten",
+        "en": "United States",
+        "es": "Estados Unidos",
+        "fr": "États-Unis",
+        "ja": "アメリカ合衆国",
+        "pt-BR": "Estados Unidos",
+        "ru": "США",
+        "zh-CN": "美国"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "UY": {
+      "geoname_id": 3439705,
+      "names": {
+        "de": "Uruguay",
+        "en": "Uruguay",
+        "es": "Uruguay",
+        "fr": "Uruguay",
+        "ja": "ウルグアイ",
+        "pt-BR": "Uruguai",
+        "ru": "Уругвай",
+        "zh-CN": "乌拉圭"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "UZ": {
+      "geoname_id": 1512440,
+      "names": {
+        "de": "Usbekistan",
+        "en": "Uzbekistan",
+        "es": "Uzbekistán",
+        "fr": "Ouzbékistan",
+        "ja": "ウズベキスタン",
+        "pt-BR": "Uzbequistão",
+        "ru": "Узбекистан",
+        "zh-CN": "乌兹别克斯坦"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "VA": {
+      "geoname_id": 3164670,
+      "names": {
+        "de": "Vatikanstadt",
+        "en": "Vatican City",
+        "es": "Ciudad del Vaticano",
+        "fr": "Vatican",
+        "ja": "バチカン",
+        "pt-BR": "Vaticano",
+        "ru": "Ватикан",
+        "zh-CN": "梵蒂冈"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "VC": {
+      "geoname_id": 3577815,
+      "names": {
+        "de": "St. Vincent und die Grenadinen",
+        "en": "Saint Vincent and the Grenadines",
+        "es": "San Vicente y las Granadinas",
+        "fr": "Saint-Vincent-et-les-Grenadines",
+        "ja": "セントビンセント・グレナディーン",
+        "pt-BR": "São Vicente e Granadinas",
+        "ru": "Сент-Винсент и Гренадины",
+        "zh-CN": "圣文森特和格林纳丁斯"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "VE": {
+      "geoname_id": 3625428,
+      "names": {
+        "de": "Venezuela",
+        "en": "Venezuela",
+        "es": "Venezuela",
+        "fr": "Venezuela",
+        "ja": "ベネズエラ",
+        "pt-BR": "Venezuela",
+        "ru": "Венесуэла",
+        "zh-CN": "委内瑞拉"
+      },
+      "continent_code": "SA",
+      "is_in_european_union": false
+    },
+    "VG": {
+      "geoname_id": 3577718,
+      "names": {
+        "de": "Britische Jungferninseln",
+        "en": "British Virgin Islands",
+        "es": "Islas Vírgenes Británicas",
+        "fr": "îles Vierges britanniques",
+        "ja": "イギリス領ヴァージン諸島",
+        "pt-BR": "Ilhas Virgens Britânicas",
+        "ru": "Британские Виргинские Острова",
+        "zh-CN": "英属维尔京群岛"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "VI": {
+      "geoname_id": 4796775,
+      "names": {
+        "de": "Amerikanische Jungferninseln",
+        "en": "United States Virgin Islands",
+        "es": "Islas Vírgenes de los Estados Unidos",
+        "fr": "îles Vierges des États-Unis",
+        "ja": "アメリカ領ヴァージン諸島",
+        "pt-BR": "Ilhas Virgens Americanas",
+        "ru": "Американские Виргинские Острова",
+        "zh-CN": "美属维尔京群岛"
+      },
+      "continent_code": "NA",
+      "is_in_european_union": false
+    },
+    "VN": {
+      "geoname_id": 1562822,
+      "names": {
+        "de": "Vietnam",
+        "en": "Vietnam",
+        "es": "Vietnam",
+        "fr": "Vietnam",
+        "ja": "ベトナム",
+        "pt-BR": "Vietnã",
+        "ru": "Вьетнам",
+        "zh-CN": "越南"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "VU": {
+      "geoname_id": 2134431,
+      "names": {
+        "de": "Vanuatu",
+        "en": "Vanuatu",
+        "es": "Vanuatu",
+        "fr": "Vanuatu",
+        "ja": "バヌアツ",
+        "pt-BR": "Vanuatu",
+        "ru": "Вануату",
+        "zh-CN": "瓦努阿图"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "WF": {
+      "geoname_id": 6942150,
+      "names": {
+        "de": "Wallis und Futuna",
+        "en": "Wallis and Futuna",
+        "es": "Wallis y Futuna",
+        "fr": "Wallis-et-Futuna",
+        "ja": "ウォリス・フツナ",
+        "pt-BR": "Wallis e Futuna",
+        "ru": "Уоллис и Футуна",
+        "zh-CN": "瓦利斯和富图纳"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "WS": {
+      "geoname_id": 4034894,
+      "names": {
+        "de": "Samoa",
+        "en": "Samoa",
+        "es": "Samoa",
+        "fr": "Samoa",
+        "ja": "サモア",
+        "pt-BR": "Samoa",
+        "ru": "Самоа",
+        "zh-CN": "萨摩亚"
+      },
+      "continent_code": "OC",
+      "is_in_european_union": false
+    },
+    "XK": {
+      "geoname_id": 831053,
+      "names": {
+        "de": "Kosovo",
+        "en": "Kosovo",
+        "es": "Kosovo",
+        "fr": "Kosovo",
+        "ja": "コソボ共和国",
+        "pt-BR": "Kosovo",
+        "ru": "Республика Косово",
+        "zh-CN": "科索沃"
+      },
+      "continent_code": "EU",
+      "is_in_european_union": false
+    },
+    "YE": {
+      "geoname_id": 69543,
+      "names": {
+        "de": "Jemen",
+        "en": "Yemen",
+        "es": "Yemen",
+        "fr": "Yémen",
+        "ja": "イエメン",
+        "pt-BR": "Iêmen",
+        "ru": "Йемен",
+        "zh-CN": "也门"
+      },
+      "continent_code": "AS",
+      "is_in_european_union": false
+    },
+    "YT": {
+      "geoname_id": 1024031,
+      "names": {
+        "de": "Mayotte",
+        "en": "Mayotte",
+        "es": "Mayotte",
+        "fr": "Mayotte",
+        "ja": "マヨット",
+        "pt-BR": "Mayotte",
+        "ru": "Майотта",
+        "zh-CN": "马约特"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "ZA": {
+      "geoname_id": 953987,
+      "names": {
+        "de": "Südafrika",
+        "en": "South Africa",
+        "es": "Sudáfrica",
+        "fr": "Afrique du Sud",
+        "ja": "南アフリカ共和国",
+        "pt-BR": "África do Sul",
+        "ru": "ЮАР",
+        "zh-CN": "南非"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "ZM": {
+      "geoname_id": 895949,
+      "names": {
+        "de": "Sambia",
+        "en": "Zambia",
+        "es": "Zambia",
+        "fr": "Zambie",
+        "ja": "ザンビア",
+        "pt-BR": "Zâmbia",
+        "ru": "Замбия",
+        "zh-CN": "赞比亚"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    },
+    "ZW": {
+      "geoname_id": 878675,
+      "names": {
+        "de": "Simbabwe",
+        "en": "Zimbabwe",
+        "es": "Zimbabue",
+        "fr": "Zimbabwe",
+        "ja": "ジンバブエ",
+        "pt-BR": "Zimbábue",
+        "ru": "Зимбабве",
+        "zh-CN": "津巴布韦"
+      },
+      "continent_code": "AF",
+      "is_in_european_union": false
+    }
+  }
+}

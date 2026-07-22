@@ -223,15 +223,21 @@ with `-in` (gzip auto-detected) and writes to stdout or `-o FILE`, with a tally
 on stderr.
 
 **[`cmd/iptoasn`](../cmd/iptoasn)** — iptoasn.com IP-to-ASN (free, no account);
-range-based → `<cidr> <ASN> <org>` (`LoadASN`):
+range-based. Three output modes:
+
+- `-output asn` (default): `<cidr> <ASN> <org>` — pipe to `mmdb-write` or `LoadASN`.
+- `-output country`: `<cidr> <country>` — pipe to `mmdb-write -db-type GeoLite2-Country`.
+- `-country`: prepend the country to the org in ASN mode: `<cidr> <ASN> <country> <org>`.
 
 ```sh
-iptoasn -family v4 -o ip2asn-v4.cidr     # v4 | v6 | combined
-iptoasn -in ip2asn-combined.tsv.gz       # convert a local (gzipped) TSV
+iptoasn -family v4 -o ip2asn-v4.cidr             # v4 | v6 | combined
+iptoasn -output country -o iptoasn-country.cidr   # country format
+iptoasn -in ip2asn-combined.tsv.gz               # convert a local (gzipped) TSV
 ```
 
-Flags: `-family`, `-url`, `-in`, `-o`, `-unrouted` (keep AS0 rows), `-country`
-(prepend the country code). AS0 "Not routed" rows are dropped by default.
+Flags: `-output` (`asn`/`country`), `-family`, `-url`, `-in`, `-o`, `-unrouted`
+(keep AS0 rows), `-country` (prepend country to org in asn mode). AS0 "Not
+routed" rows are dropped by default. In country mode, rows with country `None` are also skipped.
 
 **[`cmd/mm-geolite2-asn`](../cmd/mm-geolite2-asn)** — MaxMind GeoLite2 ASN (needs a
 free license key); CIDR-native → `<cidr> <ASN> <org>` (`LoadASN`):
@@ -257,17 +263,66 @@ mm-dbip -in dbip-country-lite-2026-07.csv.gz
 Flags: `-db` (`country`/`asn`), `-month` (default: current UTC month), `-url`,
 `-in`, `-o`. Without `-in`/`-url` the current month's file is fetched.
 
+**[`cmd/mmdb-write`](../cmd/mmdb-write)** — compiles any cidr spec into a MaxMind
+DB (`.mmdb`) file. The output schema is selected by `-db-type`:
+`GeoLite2-ASN` (default) or `GeoLite2-Country`.
+
+For **ASN** (`-db-type GeoLite2-ASN`, default): each record holds
+`autonomous_system_number` (uint32) and `autonomous_system_organization` (string).
+Input is `<cidr> <ASN> <org>` format from any data generator.
+
+For **Country** (`-db-type GeoLite2-Country`): each record holds
+`continent`, `country`, and `registered_country` in the standard GeoLite2
+schema — with country data extracted from Wikidata. Since the source spec provides only
+one country per prefix, `country` and `registered_country` are set to the same
+value (the operator's country).
+
+Input is `<cidr> <country_code>` — obtainable from `iptoasn -output country`,
+`mm-dbip -db country`, or any spec with 2-letter ISO codes in the second field.
+
+```sh
+# ASN MMDB — pipe any ASN generator
+iptoasn -family combined | mmdb-write -o iptoasn-asn.mmdb
+mm-geolite2-asn -license YOUR_KEY | mmdb-write -o geolite2-asn.mmdb
+mm-dbip -db asn | mmdb-write -o dbip-asn.mmdb
+
+# Country MMDB — pipe any country generator
+iptoasn -output country | mmdb-write -db-type GeoLite2-Country -o iptoasn-country.mmdb
+mm-dbip -db country | mmdb-write -db-type GeoLite2-Country -o dbip-country.mmdb
+
+# From an existing spec file
+mmdb-write -in my-asn.cidr -o asn.mmdb
+mmdb-write -in my-country.cidr -db-type GeoLite2-Country -o country.mmdb
+```
+
+Flags: `-in`, `-o`, `-db-type` (default `GeoLite2-ASN`), `-description`
+(default `IPtoASN`), `-build-epoch`, `-ip-version` (4 or 6, default 6).
+
+Scheduled MMDB regeneration: `build/mmdb-iptoasn-write --generator` installs a
+daily oneshot service + timer that fetches iptoasn.com and compiles
+`/var/lib/cidr/iptoasn-asn.mmdb` and `/var/lib/cidr/iptoasn-country.mmdb`.
+
+The embedded country metadata lives at `cmd/mmdb-write/data/countries.json`.
+Refresh it from Wikidata like so:
+
+```sh
+# Recommended: download Wikidata country info
+go run ./cmd/mmdb-build-countries
+```
+
 ### Scheduled generation (systemd)
 
 Each generator has a build script under [`build/`](../build) that cross-compiles
 a version-stamped `linux/amd64` binary and, in `--generator` mode, installs a
-oneshot systemd service plus a timer that regenerates the spec into
-`/var/lib/cidr/` on a schedule (iptoasn daily, DB-IP monthly, MaxMind weekly):
+oneshot systemd service plus a timer that regenerates the spec (or MMDB) into
+`/var/lib/cidr/` on a schedule (iptoasn daily, DB-IP monthly, MaxMind weekly,
+MMDB compile after MaxMind):
 
 ```sh
-build/iptoasn --generator user@host                       # daily -> ip2asn.cidr
-build/mm-dbip --generator user@host                       # monthly -> dbip-country.cidr
-build/mm-geolite2-asn --generator --key YOUR_KEY user@host # weekly -> geolite2-asn.cidr
+build/iptoasn --generator user@host                       # daily    -> ip2asn.cidr
+build/mm-dbip --generator user@host                       # monthly  -> dbip-country.cidr
+build/mm-geolite2-asn --generator --key YOUR_KEY user@host # weekly   -> geolite2-asn.cidr
+build/mmdb-iptoasn-write --generator user@host            # daily -> iptoasn-asn.mmdb + iptoasn-country.mmdb
 ```
 
 `--cli` (the default) builds just the binary — nothing is scheduled. With no

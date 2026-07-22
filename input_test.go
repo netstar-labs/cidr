@@ -45,6 +45,33 @@ func TestParseSpec(t *testing.T) {
 	}
 }
 
+// TestParseSpecCountryFallback: a second field that is not an ASN becomes the
+// Org — the shape `iptoasn -output country` emits ("<cidr> <cc>"). The ISO code
+// "AS" (American Samoa) must not be mistaken for the "AS" ASN prefix.
+func TestParseSpecCountryFallback(t *testing.T) {
+	cases := []struct {
+		line    string
+		wantASN uint32
+		wantOrg string
+	}{
+		{"1.2.3.0/24 US", 0, "US"},
+		{"1.2.3.0/24 AS", 0, "AS"},        // American Samoa, not an AS-prefixed ASN
+		{"1.2.3.0/24 AS13335", 13335, ""}, // a real AS-prefixed ASN still parses
+		{"1.2.3.0/24 13335 Cloudflare, Inc.", 13335, "Cloudflare, Inc."},
+	}
+	for _, c := range cases {
+		e, ok := parseSpecLine(c.line)
+		if !ok {
+			t.Errorf("parseSpecLine(%q): not ok", c.line)
+			continue
+		}
+		if e.ASN != c.wantASN || e.Org != c.wantOrg {
+			t.Errorf("parseSpecLine(%q) = ASN %d Org %q, want ASN %d Org %q",
+				c.line, e.ASN, e.Org, c.wantASN, c.wantOrg)
+		}
+	}
+}
+
 func TestLoadASN(t *testing.T) {
 	set, table, err := LoadASN(strings.NewReader(sampleSpec))
 	if err != nil {

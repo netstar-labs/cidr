@@ -54,6 +54,25 @@ func TestConvertOptions(t *testing.T) {
 	}
 }
 
+// TestConvertCountry tests the "country" output mode, which outputs only the prefix and country code.
+func TestConvertCountry(t *testing.T) {
+	var buf bytes.Buffer
+	st, err := convert(strings.NewReader(sampleTSV), &buf, options{outputMode: "country"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "1.0.0.0/24 US\n" +
+		"8.8.8.0/24 US\n" +
+		"2001:db8::/112 ZZ\n"
+	if buf.String() != want {
+		t.Errorf("output:\n%q\nwant:\n%q", buf.String(), want)
+	}
+	// 3 rows, 3 prefixes, no unrouted/malformed (AS0 with "None" country is skipped)
+	if st.rows != 3 || st.prefixes != 3 || st.unrouted != 0 || st.malformed != 1 {
+		t.Errorf("stats = %+v", st)
+	}
+}
+
 // TestRoundTrip converts the sample, then loads the result back with the cidr
 // spec loader and queries it — the full iptoasn -> spec -> table pipeline.
 func TestRoundTrip(t *testing.T) {
