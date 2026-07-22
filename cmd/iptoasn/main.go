@@ -2,14 +2,14 @@
 // start/end address range to its minimal set of CIDR prefixes, and writes
 // cidr spec lines. Three output modes:
 //
-//   -output asn (default): "<cidr> <ASN> <org>" — load with LoadASN / cidr.
-//   -output country:       "<cidr> <country>" — pipe to mmdb-write -db-type GeoLite2-Country.
-//   -country:              "<cidr> <ASN> <country> <org>" — load with LoadASN / cidr, country prepended to org.
+//	  -output asn (default): "<cidr> <ASN> <org>" — load with LoadASN / cidr.
+//	  -output country:       "<cidr> <country>" — pipe to mmdb-write -db-type GeoLite2-Country.
+//	  -country:              "<cidr> <ASN> <country> <org>" — load with LoadASN / cidr, country prepended to org.
 //
-//	iptoasn                                   # fetch combined v4+v6 -> stdout
-//	iptoasn -family v4 -o ip2asn-v4.cidr      # just IPv4, to a file
-//	iptoasn -in ip2asn-combined.tsv.gz        # convert a local (gzipped) TSV
-//	iptoasn -unrouted -country                # keep AS0 rows and prepend country
+//		iptoasn                                   # fetch combined v4+v6 -> stdout
+//		iptoasn -family v4 -o ip2asn-v4.cidr      # just IPv4, to a file
+//		iptoasn -in ip2asn-combined.tsv.gz        # convert a local (gzipped) TSV
+//		iptoasn -unrouted -country                # keep AS0 rows and prepend country
 //
 // The source is the tab-separated table published at
 // https://iptoasn.com/data/ (range_start, range_end, AS_number, country,

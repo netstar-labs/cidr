@@ -36,6 +36,9 @@ var (
 	Revision = "unknown"
 )
 
+// versionString is the -version line, as a function so tests can assert its shape.
+func versionString() string { return fmt.Sprintf("mmdb-write %s (%s)", Version, Revision) }
+
 //go:embed data/countries.json
 var countriesJSON []byte
 
@@ -76,7 +79,7 @@ func main() {
 	flag.Parse()
 
 	if *version {
-		fmt.Printf("mmdb-write %s (%s)\n", Version, Revision)
+		fmt.Println(versionString())
 		return
 	}
 
@@ -145,6 +148,8 @@ func run(in, out, dbType, description string, buildEpoch int64, ipVersion, recor
 // When isCountry is true, each spec entry's Org field is treated as an ISO
 // country code and looked up in the embedded country dataset to build a
 // GeoLite2-Country-style record (continent + country + registered_country).
+// registered_country mirrors country (IPtoASN carries a single country per
+// range), and non-country pseudo-codes (EU, AP, ZZ, Unknown, empty) are skipped.
 func writeMMDB(w io.Writer, entries []cidr.SpecEntry, dbType, description string, buildEpoch int64, ipVersion, recordSize int, isCountry bool) (int64, error) {
 	if buildEpoch == 0 {
 		buildEpoch = time.Now().Unix()

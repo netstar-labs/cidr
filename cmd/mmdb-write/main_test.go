@@ -267,10 +267,88 @@ func TestCountryMMDB(t *testing.T) {
 	}
 }
 
-func TestVersionFlag(t *testing.T) {
-	Version = "test"
-	Revision = "abc123"
-	if Version != "test" || Revision != "abc123" {
-		t.Fatal("version stamps not set")
+func TestVersionString(t *testing.T) {
+	Version, Revision = "v1.2.3", "abcdef012345"
+	if got, want := versionString(), "mmdb-write v1.2.3 (abcdef012345)"; got != want {
+		t.Errorf("versionString() = %q, want %q", got, want)
+	}
+}
+
+// TestCountryPseudoCodesSkipped: non-country pseudo-codes (and codes absent from
+// the dataset) are dropped, so no bogus record is emitted — only the real
+// country survives.
+func TestCountryPseudoCodesSkipped(t *testing.T) {
+	spec := strings.Join([]string{
+		"1.0.0.0/24 US",
+		"2.0.0.0/24 EU",
+		"3.0.0.0/24 AP",
+		"4.0.0.0/24 ZZ",
+		"5.0.0.0/24 Unknown",
+		"6.0.0.0/24 XX", // not a pseudo-code, but absent from the dataset -> skipped
+	}, "\n") + "\n"
+	entries, err := cidr.ParseSpec(strings.NewReader(spec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if _, err := writeMMDB(&buf, entries, "GeoLite2-Country", "test", 0, 6, 24, true); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := maxminddb.OpenBytes(buf.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+
+	n := 0
+	for range reader.Networks() {
+		n++
+	}
+	if n != 1 {
+		t.Errorf("networks = %d, want 1 (only US)", n)
+	}
+	if r := reader.Lookup(netip.MustParseAddr("1.0.0.1")); !r.Found() {
+		t.Error("US network missing")
+	}
+	if r := reader.Lookup(netip.MustParseAddr("2.0.0.1")); r.Found() {
+		t.Error(`pseudo-code "EU" should have been skipped`)
+	}
+}
+
+// TestCountryAmericanSamoa: ISO code "AS" — which collides with the "AS" ASN
+// prefix in the spec parser — round-trips to an American Samoa (Oceania) record.
+func TestCountryAmericanSamoa(t *testing.T) {
+	entries, err := cidr.ParseSpec(strings.NewReader("1.2.3.0/24 AS\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Org != "AS" {
+		t.Fatalf("parsed = %+v, want one entry with Org=AS", entries)
+	}
+	var buf bytes.Buffer
+	if _, err := writeMMDB(&buf, entries, "GeoLite2-Country", "test", 0, 6, 24, true); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := maxminddb.OpenBytes(buf.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+
+	var result map[string]any
+	r := reader.Lookup(netip.MustParseAddr("1.2.3.4"))
+	if !r.Found() {
+		t.Fatal("1.2.3.4 not found")
+	}
+	if err := r.Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	country, _ := result["country"].(map[string]any)
+	if got, _ := country["iso_code"].(string); got != "AS" {
+		t.Errorf("country.iso_code = %q, want AS", got)
+	}
+	cont, _ := result["continent"].(map[string]any)
+	if got, _ := cont["code"].(string); got != "OC" {
+		t.Errorf("continent.code = %q, want OC (Oceania)", got)
 	}
 }

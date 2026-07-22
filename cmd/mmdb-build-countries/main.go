@@ -66,6 +66,21 @@ var continentFallback = map[string]string{
 	"TF": "AN", // French Southern and Antarctic Lands
 }
 
+// continentOverride pins a single continent for transcontinental countries —
+// whose Wikidata records list two continents — so regeneration is reproducible
+// instead of depending on map iteration order. Values match the shipped
+// countries.json.
+var continentOverride = map[string]string{
+	"RU": "EU", // Russia
+	"TR": "AS", // Turkey
+	"KZ": "EU", // Kazakhstan
+	"AZ": "AS", // Azerbaijan
+	"GE": "EU", // Georgia
+	"AM": "AS", // Armenia
+	"CY": "EU", // Cyprus
+	"EG": "AF", // Egypt
+}
+
 var localePriority = map[string][]string{
 	"de":    {"nameDe"},
 	"en":    {"nameEn"},
@@ -228,7 +243,9 @@ func fetchCountryData(endpoint string) (map[string]countryInfo, error) {
 			IsInEuropeanUnion: a.eu,
 		}
 
-		if len(a.continents) > 0 {
+		if ov, ok := continentOverride[iso]; ok {
+			ci.ContinentCode = ov // transcontinental: pin the canonical continent
+		} else if len(a.continents) > 0 {
 			ci.ContinentCode = pickContinent(a.continents)
 		} else if fb, ok := continentFallback[iso]; ok {
 			ci.ContinentCode = fb
@@ -307,11 +324,19 @@ func fetchContinentData(endpoint string) (map[string]continentInfo, error) {
 	return continents, nil
 }
 
+// pickContinent returns one continent code deterministically. A multi-continent
+// country not covered by continentOverride lands here; sorting makes the choice
+// reproducible across runs (map iteration order is not).
 func pickContinent(conts map[string]bool) string {
+	codes := make([]string, 0, len(conts))
 	for c := range conts {
-		return c
+		codes = append(codes, c)
 	}
-	return ""
+	if len(codes) == 0 {
+		return ""
+	}
+	sort.Strings(codes)
+	return codes[0]
 }
 
 func main() {
@@ -332,10 +357,6 @@ func main() {
 	}
 
 	continents, err := fetchContinentData(*wdEndpoint)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
