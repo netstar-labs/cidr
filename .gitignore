@@ -14,7 +14,11 @@ _bin/
 _dev/
 sandbox/
 install/
-testdata/
+# ignore large downloaded corpora under testdata/, but track the small committed
+# MMDB reader fixtures (built by mmdb-write; the stdlib-only root cannot synthesize
+# them in-test the way the writer module does).
+testdata/*
+!testdata/test-*.mmdb
 dat/
 
 # build outputs and deploy target for build/cidr
