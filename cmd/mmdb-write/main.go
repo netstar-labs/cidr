@@ -195,18 +195,15 @@ func writeMMDB(w io.Writer, entries []cidr.SpecEntry, dbType, description string
 				continue
 			}
 
-			contNames := toNamesAny(cont.Names)
-			countryNames := toNamesAny(ci.Names)
-
 			countryRec := map[string]any{
 				"geoname_id": ci.GeonameID,
 				"iso_code":   isoCode,
-				"names":      countryNames,
+				"names":      ci.Names,
 			}
 			rcRec := map[string]any{
 				"geoname_id": ci.GeonameID,
 				"iso_code":   isoCode,
-				"names":      countryNames,
+				"names":      ci.Names,
 			}
 			if ci.IsInEuropeanUnion {
 				countryRec["is_in_european_union"] = true
@@ -217,7 +214,7 @@ func writeMMDB(w io.Writer, entries []cidr.SpecEntry, dbType, description string
 				"continent": toMMDBType(map[string]any{
 					"code":       ci.ContinentCode,
 					"geoname_id": cont.GeonameID,
-					"names":      contNames,
+					"names":      cont.Names,
 				}),
 				"country":            toMMDBType(countryRec),
 				"registered_country": toMMDBType(rcRec),
@@ -242,16 +239,6 @@ func writeMMDB(w io.Writer, entries []cidr.SpecEntry, dbType, description string
 	return tree.WriteTo(w)
 }
 
-// toNamesAny converts a map[string]string (from our structs) to map[string]any
-// so that toMMDBType recurses into it properly.
-func toNamesAny(m map[string]string) map[string]any {
-	out := make(map[string]any, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-	return out
-}
-
 // toMMDBType recursively converts a Go value to an mmdbtype value.
 func toMMDBType(v any) mmdbtype.DataType {
 	switch x := v.(type) {
@@ -259,6 +246,12 @@ func toMMDBType(v any) mmdbtype.DataType {
 		m := make(mmdbtype.Map, len(x))
 		for k, val := range x {
 			m[mmdbtype.String(k)] = toMMDBType(val)
+		}
+		return m
+	case map[string]string: // e.g. a names map straight from the country schema
+		m := make(mmdbtype.Map, len(x))
+		for k, val := range x {
+			m[mmdbtype.String(k)] = mmdbtype.String(val)
 		}
 		return m
 	case string:

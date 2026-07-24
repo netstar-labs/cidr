@@ -139,10 +139,7 @@ func LoadFunc[V any](r io.Reader, parse func(fields []string) (netip.Prefix, V, 
 		if line == "" || line[0] == '#' {
 			continue
 		}
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			continue
-		}
+		fields := strings.Fields(line) // always >= 1: line is trimmed and non-empty here
 		if p, v, ok := parse(fields); ok {
 			tb.Add(p, v)
 		}

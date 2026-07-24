@@ -24,3 +24,12 @@ dat/
 # build outputs and deploy target for build/cidr
 build/install/
 build/host
+
+# compiled cmd binaries (built in-place by `go build ./cmd/<x>`)
+/cmd/cidr/cidr
+/cmd/ipfold/ipfold
+/cmd/iptoasn/iptoasn
+/cmd/mm-dbip/mm-dbip
+/cmd/mm-geolite2-asn/mm-geolite2-asn
+/cmd/mmdb-build-countries/mmdb-build-countries
+/cmd/mmdb-write/mmdb-write

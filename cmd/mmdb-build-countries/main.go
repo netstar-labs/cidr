@@ -24,10 +24,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -328,15 +329,10 @@ func fetchContinentData(endpoint string) (map[string]continentInfo, error) {
 // country not covered by continentOverride lands here; sorting makes the choice
 // reproducible across runs (map iteration order is not).
 func pickContinent(conts map[string]bool) string {
-	codes := make([]string, 0, len(conts))
-	for c := range conts {
-		codes = append(codes, c)
-	}
-	if len(codes) == 0 {
+	if len(conts) == 0 {
 		return ""
 	}
-	sort.Strings(codes)
-	return codes[0]
+	return slices.Sorted(maps.Keys(conts))[0]
 }
 
 func main() {
@@ -389,10 +385,5 @@ func main() {
 }
 
 func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+	return slices.Sorted(maps.Keys(m))
 }

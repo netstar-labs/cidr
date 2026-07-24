@@ -171,8 +171,8 @@ func sweep(prefixes []pfx) []segment {
 // Lookup returns the value of the most-specific prefix covering a, or the zero V
 // and false when no prefix covers it.
 func (t *Table[V]) Lookup(a netip.Addr) (V, bool) {
+	var zero V
 	if !a.IsValid() {
-		var zero V
 		return zero, false
 	}
 	a = a.Unmap()
@@ -182,12 +182,10 @@ func (t *Table[V]) Lookup(a netip.Addr) (V, bool) {
 	}
 	i := sort.Search(len(segs), func(i int) bool { return a.Less(segs[i].start) })
 	if i == 0 {
-		var zero V
 		return zero, false
 	}
 	vi := segs[i-1].vi
 	if vi < 0 {
-		var zero V
 		return zero, false
 	}
 	return t.vals[vi], true

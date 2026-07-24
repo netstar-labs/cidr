@@ -126,20 +126,14 @@ func (a u128) to16() netip.Addr {
 func (a u128) or(b u128) u128 { return u128{a.hi | b.hi, a.lo | b.lo} }
 
 func (a u128) add(b u128) u128 {
-	lo := a.lo + b.lo
-	hi := a.hi + b.hi
-	if lo < a.lo {
-		hi++ // carry
-	}
+	lo, c := bits.Add64(a.lo, b.lo, 0)
+	hi, _ := bits.Add64(a.hi, b.hi, c)
 	return u128{hi, lo}
 }
 
 func (a u128) sub(b u128) u128 {
-	lo := a.lo - b.lo
-	hi := a.hi - b.hi
-	if a.lo < b.lo {
-		hi-- // borrow
-	}
+	lo, br := bits.Sub64(a.lo, b.lo, 0)
+	hi, _ := bits.Sub64(a.hi, b.hi, br)
 	return u128{hi, lo}
 }
 
