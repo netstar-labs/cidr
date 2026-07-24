@@ -103,8 +103,11 @@ func buildSet(entries []SpecEntry) *Set {
 	return b.Freeze()
 }
 
-// buildASN compiles entries into a membership Set plus an LPM value Table[Info].
-func buildASN(entries []SpecEntry) (*Set, *Table[Info]) {
+// BuildASN compiles already-parsed entries into a membership Set plus an LPM value
+// Table[Info] in one pass — the "entries → Set + Table" step LoadASN wraps, exported so a
+// caller that parsed the entries itself (to count or filter them first) can build both
+// without re-parsing.
+func BuildASN(entries []SpecEntry) (*Set, *Table[Info]) {
 	sb := NewBuilder()
 	tb := NewTableBuilder[Info]()
 	for _, e := range entries {
@@ -155,7 +158,7 @@ func LoadASN(r io.Reader) (*Set, *Table[Info], error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	set, table := buildASN(entries)
+	set, table := BuildASN(entries)
 	return set, table, nil
 }
 
@@ -210,6 +213,6 @@ func LoadRefsASN(r io.Reader) (*Set, *Table[Info], error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	set, table := buildASN(rf.Entries())
+	set, table := BuildASN(rf.Entries())
 	return set, table, nil
 }

@@ -98,13 +98,8 @@ func load(path string) (*api, error) {
 
 // buildFrom compiles parsed entries into a Set + Table[Info].
 func buildFrom(entries []cidr.SpecEntry) (*cidr.Set, *cidr.Table[cidr.Info], error) {
-	sb := cidr.NewBuilder()
-	tb := cidr.NewTableBuilder[cidr.Info]()
-	for _, e := range entries {
-		sb.Add(e.Prefix)
-		tb.Add(e.Prefix, cidr.Info{Prefix: e.Prefix.String(), ASN: e.ASN, Org: e.Org})
-	}
-	return sb.Freeze(), tb.Freeze(), nil
+	set, table := cidr.BuildASN(entries)
+	return set, table, nil
 }
 
 // lookup resolves one address into a result.

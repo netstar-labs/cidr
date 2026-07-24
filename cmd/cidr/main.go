@@ -155,13 +155,7 @@ func firstNonSpace(b []byte) byte {
 }
 
 func build(entries []cidr.SpecEntry) (*cidr.Set, *cidr.Table[cidr.Info]) {
-	sb := cidr.NewBuilder()
-	tb := cidr.NewTableBuilder[cidr.Info]()
-	for _, e := range entries {
-		sb.Add(e.Prefix)
-		tb.Add(e.Prefix, cidr.Info{Prefix: e.Prefix.String(), ASN: e.ASN, Org: e.Org})
-	}
-	return sb.Freeze(), tb.Freeze()
+	return cidr.BuildASN(entries)
 }
 
 func resolve(set *cidr.Set, table *cidr.Table[cidr.Info], ip netip.Addr) result {
