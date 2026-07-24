@@ -173,7 +173,12 @@ func convert(r io.Reader, w io.Writer, opts options) (stats, error) {
 			if cc == "" || cc == "None" {
 				continue
 			}
-			for _, p := range cidr.RangePrefixes(lo, hi) {
+			prefixes := cidr.RangePrefixes(lo, hi)
+			if len(prefixes) == 0 {
+				st.malformed++ // invalid range: mixed family or reversed (lo > hi)
+				continue
+			}
+			for _, p := range prefixes {
 				if _, err := fmt.Fprintf(w, "%s %s\n", p, cc); err != nil {
 					return st, err
 				}
@@ -197,7 +202,12 @@ func convert(r io.Reader, w io.Writer, opts options) (stats, error) {
 		if opts.country && cols[3] != "" && cols[3] != "None" {
 			org = cols[3] + " " + org
 		}
-		for _, p := range cidr.RangePrefixes(lo, hi) {
+		prefixes := cidr.RangePrefixes(lo, hi)
+		if len(prefixes) == 0 {
+			st.malformed++ // invalid range: mixed family or reversed (lo > hi)
+			continue
+		}
+		for _, p := range prefixes {
 			if _, err := fmt.Fprintf(w, "%s %d %s\n", p, asn, org); err != nil {
 				return st, err
 			}

@@ -94,3 +94,24 @@ func TestRoundTrip(t *testing.T) {
 		t.Error("9.9.9.9 should miss")
 	}
 }
+
+// TestConvertInvalidRange: a row whose endpoints parse but form an invalid range
+// (mixed family, or reversed) is counted malformed, not silently emitted as a 0-prefix row.
+func TestConvertInvalidRange(t *testing.T) {
+	in := strings.Join([]string{
+		"2.2.2.2\t::1\t100\tUS\tmixed family", // v4 start, v6 end
+		"9.9.9.9\t9.9.9.0\t200\tUS\treversed", // hi < lo
+		"8.8.8.0\t8.8.8.255\t15169\tUS\tGOOD", // one valid row
+	}, "\n") + "\n"
+	var buf bytes.Buffer
+	st, err := convert(strings.NewReader(in), &buf, options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); got != "8.8.8.0/24 15169 GOOD\n" {
+		t.Errorf("output:\n%q", got)
+	}
+	if st.rows != 1 || st.prefixes != 1 || st.malformed != 2 {
+		t.Errorf("stats = %+v, want rows=1 prefixes=1 malformed=2", st)
+	}
+}
