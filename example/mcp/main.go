@@ -269,11 +269,6 @@ func load(path string) (*cidr.Set, *cidr.Table[cidr.Info], int, error) {
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	sb := cidr.NewBuilder()
-	tb := cidr.NewTableBuilder[cidr.Info]()
-	for _, e := range entries {
-		sb.Add(e.Prefix)
-		tb.Add(e.Prefix, cidr.Info{Prefix: e.Prefix.String(), ASN: e.ASN, Org: e.Org})
-	}
-	return sb.Freeze(), tb.Freeze(), len(entries), nil
+	set, table := cidr.BuildASN(entries)
+	return set, table, len(entries), nil
 }

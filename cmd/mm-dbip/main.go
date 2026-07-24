@@ -132,6 +132,10 @@ func convert(r io.Reader, w io.Writer, db string) (stats, error) {
 			continue
 		}
 		prefixes := cidr.RangePrefixes(lo, hi)
+		if len(prefixes) == 0 {
+			st.malformed++ // invalid range: mixed family or reversed (lo > hi)
+			continue
+		}
 		switch db {
 		case "country":
 			cc := strings.TrimSpace(rec[2])

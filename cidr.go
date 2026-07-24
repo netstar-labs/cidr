@@ -30,6 +30,7 @@ package cidr
 
 import (
 	"net/netip"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -59,32 +60,16 @@ func ParsePrefix(s string) (netip.Prefix, error) {
 	return netip.PrefixFrom(a, a.BitLen()), nil
 }
 
-// lastAddr returns the broadcast (all-host-bits-set) address of a prefix.
+// lastAddr returns the broadcast (all-host-bits-set) address of a prefix: the network
+// address OR the host mask (the low 32-bits/128-bits host portion). Reuses the range.go
+// u128 helpers rather than a second hand-rolled shift/loop.
 func lastAddr(p netip.Prefix) netip.Addr {
 	p = p.Masked()
 	a := p.Addr()
 	if a.Is4() {
-		v := a.As4()
-		host := 32 - p.Bits()
-		u := uint32(v[0])<<24 | uint32(v[1])<<16 | uint32(v[2])<<8 | uint32(v[3])
-		if host < 32 {
-			u |= (uint32(1) << host) - 1
-		} else {
-			u = ^uint32(0)
-		}
-		return netip.AddrFrom4([4]byte{byte(u >> 24), byte(u >> 16), byte(u >> 8), byte(u)})
+		return u128From4(a).or(lowMask(32 - p.Bits())).to4()
 	}
-	v := a.As16()
-	host := 128 - p.Bits()
-	for i := 15; i >= 0 && host > 0; i-- {
-		take := host
-		if take > 8 {
-			take = 8
-		}
-		v[i] |= byte((1 << take) - 1)
-		host -= take
-	}
-	return netip.AddrFrom16(v)
+	return u128From16(a).or(lowMask(128 - p.Bits())).to16()
 }
 
 // plusOneLess reports whether hi+1 < x, treating hi+1 as +infinity when hi is
@@ -102,7 +87,7 @@ func mergeRanges(rs []iprange) []iprange {
 	if len(rs) < 2 {
 		return rs
 	}
-	sort.Slice(rs, func(i, j int) bool { return rs[i].lo.Less(rs[j].lo) })
+	slices.SortFunc(rs, func(a, b iprange) int { return a.lo.Compare(b.lo) })
 	out := rs[:1]
 	for _, r := range rs[1:] {
 		last := &out[len(out)-1]
