@@ -53,8 +53,7 @@ table := tb.Freeze()
 
 table.Lookup(netip.MustParseAddr("1.1.1.10"))  // "AS13335 Cloudflare", true
 table.Lookup(netip.MustParseAddr("1.1.1.200")) // "AS13335 sub-block", true  (the /25 wins)
-table.Lookup(netip.MustParseAddr("9.9.9.9"))   // "", false
-table.Contains(netip.MustParseAddr("9.9.9.9")) // false  (membership, ignoring the value)
+table.Lookup(netip.MustParseAddr("9.9.9.9"))   // "", false  (ok reports membership; Table has no Contains)
 ```
 
 Adding the same prefix twice keeps the **last** value.
@@ -236,7 +235,7 @@ iptoasn -in ip2asn-combined.tsv.gz               # convert a local (gzipped) TSV
 ```
 
 Flags: `-output` (`asn`/`country`), `-family`, `-url`, `-in`, `-o`, `-unrouted`
-(keep AS0 rows), `-country` (prepend country to org in asn mode). AS0 "Not
+(keep AS0 rows), `-country` (prepend country to org in asn mode), `-timeout`. AS0 "Not
 routed" rows are dropped by default. In country mode, rows with country `None` are also skipped.
 
 **[`cmd/mm-geolite2-asn`](../cmd/mm-geolite2-asn)** — MaxMind GeoLite2 ASN (needs a
@@ -247,7 +246,7 @@ mm-geolite2-asn -license YOUR_KEY -o geolite2-asn.cidr   # download the CSV zip
 mm-geolite2-asn -in GeoLite2-ASN-CSV.zip                 # or a local zip/.csv/.csv.gz
 ```
 
-Flags: `-license`, `-family` (`v4`/`v6`/`both`), `-url`, `-in`, `-o`. The
+Flags: `-license`, `-family` (`v4`/`v6`/`both`), `-url`, `-in`, `-o`, `-timeout`. The
 download is the GeoLite2-ASN-CSV zip; the blocks CSVs are already CIDR-native.
 
 **[`cmd/mm-dbip`](../cmd/mm-dbip)** — DB-IP Lite (free, CC BY); range-based. `-db
@@ -261,7 +260,7 @@ mm-dbip -in dbip-country-lite-2026-07.csv.gz
 ```
 
 Flags: `-db` (`country`/`asn`), `-month` (default: current UTC month), `-url`,
-`-in`, `-o`. Without `-in`/`-url` the current month's file is fetched.
+`-in`, `-o`, `-timeout`. Without `-in`/`-url` the current month's file is fetched.
 
 **[`cmd/mmdb-write`](../cmd/mmdb-write)** — compiles any cidr spec into a MaxMind
 DB (`.mmdb`) file. The output schema is selected by `-db-type`:
@@ -296,7 +295,8 @@ mmdb-write -in my-country.cidr -db-type GeoLite2-Country -o country.mmdb
 ```
 
 Flags: `-in`, `-o`, `-db-type` (default `GeoLite2-ASN`), `-description`
-(default `IPtoASN`), `-build-epoch`, `-ip-version` (4 or 6, default 6).
+(default: `IPtoASN` for `GeoLite2-ASN`, otherwise the db-type), `-build-epoch`,
+`-ip-version` (4 or 6, default 6), `-record-size` (24/28/32, default 24).
 
 Scheduled MMDB regeneration: `build/mmdb-iptoasn-write --generator` installs a
 daily oneshot service + timer that fetches iptoasn.com and compiles
@@ -315,8 +315,8 @@ go run ./cmd/mmdb-build-countries
 Each generator has a build script under [`build/`](../build) that cross-compiles
 a version-stamped `linux/amd64` binary and, in `--generator` mode, installs a
 oneshot systemd service plus a timer that regenerates the spec (or MMDB) into
-`/var/lib/cidr/` on a schedule (iptoasn daily, DB-IP monthly, MaxMind weekly,
-MMDB compile after MaxMind):
+`/var/lib/cidr/` on a schedule (iptoasn daily, DB-IP monthly, MaxMind weekly;
+the MMDB compile runs daily, from iptoasn):
 
 ```sh
 build/iptoasn --generator user@host                       # daily    -> ip2asn.cidr

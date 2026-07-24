@@ -141,7 +141,7 @@ Cross-compile a version-stamped static binary with [`build/cidr`](build/cidr)
 
 ### More tools
 
-[`cmd/`](cmd) ships five more programs — see the [cmd README](cmd/README.md):
+[`cmd/`](cmd) ships six more programs — see the [cmd README](cmd/README.md):
 
 - **[`ipfold`](cmd/ipfold)** — fold an unorganized IP list into the minimal CIDR
   set (`10.0.0.12`, `.13`, `.14`, `.15` → `10.0.0.12/30`); built for 100M+
@@ -154,6 +154,8 @@ Cross-compile a version-stamped static binary with [`build/cidr`](build/cidr)
   (`.mmdb`) file, supporting both ASN (`GeoIP2-ASN`-compatible) and Country
   (`GeoLite2-Country`-compatible) output schemas. Pipe any data generator
   directly: `iptoasn | mmdb-write -o asn.mmdb`.
+- **[`mmdb-build-countries`](cmd/mmdb-build-countries)** — build the country
+  nomenclature dataset (from Wikidata) that `mmdb-write` uses for Country DBs.
 
 ## Examples
 
@@ -187,7 +189,7 @@ including when a trie *is* the right choice, is in
 
 ## Layout
 
-The package is four root `.go` files (plus the `cmd/`, `example/`, and `build/`
+The package is five root `.go` files (plus the `cmd/`, `example/`, and `build/`
 trees):
 
 | File | Purpose |
@@ -196,6 +198,7 @@ trees):
 | [`table.go`](table.go) | `Table[V]` longest-prefix-match value table and `TableBuilder[V]`; the build-time line sweep that resolves nesting; `EncodeASN`/`DecodeASN` |
 | [`input.go`](input.go) | Text/JSON loaders — `ParseSpec`, `LoadSet`, `LoadASN`, `LoadFunc`, the `Refs` envelope (`ParseRefs`/`LoadRefs*`), and the `Info`/`SpecEntry` types |
 | [`range.go`](range.go) | Range ingest — `AddRange`, `RangePrefixes`/`AppendRangePrefixes`, and the `u128` range-to-CIDR arithmetic behind them |
+| [`mmdb.go`](mmdb.go) | Stdlib-only MaxMind DB (`.mmdb`) reader — `OpenMMDB`/`OpenMMDBBytes`, `(*MMDB).Lookup`/`Metadata`/`Close`; safe for concurrent lookups |
 
 ## Install
 

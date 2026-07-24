@@ -71,8 +71,8 @@ mmdb-write -in my-spec.cidr -o my-asn.mmdb                    # from a file
 ```
 
 Flags: `-in`, `-o`, `-db-type` (default `GeoLite2-ASN`), `-description`
-(default `IPtoASN`), `-build-epoch`, `-ip-version` (4 or 6, default 6),
-`-record-size` (24/28/32).
+(default: `IPtoASN` for `GeoLite2-ASN`, otherwise the db-type), `-build-epoch`,
+`-ip-version` (4 or 6, default 6), `-record-size` (24/28/32, default 24).
 
 Country metadata is stored in `cmd/mmdb-write/data/countries.json` and embedded
 at build time. Refresh it from [Wikidata](https://www.wikidata.org) like so:
@@ -125,7 +125,7 @@ iptoasn -in ip2asn-combined.tsv.gz
 ```
 
 Flags: `-output` (`asn`/`country`), `-family`, `-url`, `-in`, `-o`, `-unrouted`
-(keep AS0 rows), `-country` (prepend country to org in asn mode).
+(keep AS0 rows), `-country` (prepend country to org in asn mode), `-timeout`.
 
 ### `mm-geolite2-asn`
 
@@ -137,7 +137,7 @@ mm-geolite2-asn -in GeoLite2-ASN-CSV.zip                 # or a local zip/.csv/.
 ```
 
 Flags: `-license` (or `$MAXMIND_LICENSE_KEY`), `-family` (`v4`/`v6`/`both`),
-`-url`, `-in`, `-o`. Its `build --generator` mode **requires `--key`** and
+`-url`, `-in`, `-o`, `-timeout`. Its `build --generator` mode **requires `--key`** and
 refuses without one, storing it in a mode-600 EnvironmentFile.
 
 ### `mm-dbip`
@@ -152,13 +152,13 @@ mm-dbip -in dbip-country-lite-2026-07.csv.gz
 ```
 
 Flags: `-db` (`country`/`asn`), `-month` (default: current UTC month), `-url`,
-`-in`, `-o`. Without `-in`/`-url` the current month's file is fetched.
+`-in`, `-o`, `-timeout`. Without `-in`/`-url` the current month's file is fetched.
 
 ### `mmdb-build-countries`
 
 Builds the country nomenclature dataset used by `mmdb-write -db-type GeoLite2-Country`.
 
-Fetches all country metadata via a single [Wikidata](https://www.wikidata.org) SPARQL query:
+Fetches country metadata via two [Wikidata](https://www.wikidata.org) SPARQL queries (countries + continents):
 ISO codes (`P297`), translated names in 8 locales (`de`, `en`, `es`, `fr`, `ja`,
 `pt-BR`, `ru`, `zh-CN`), continent mapping (`P30`), EU membership (`P463` with
 end-date filtering), and GeoNames IDs (`P1566`). GeoNames IDs are used in MaxMind databases.
@@ -166,11 +166,12 @@ end-date filtering), and GeoNames IDs (`P1566`). GeoNames IDs are used in MaxMin
 No external attribution required — Wikidata is CC0 / public domain.
 
 ```sh
-mmdb-build-countries                                       # single Wikidata query
+mmdb-build-countries                                       # two Wikidata queries
 mmdb-build-countries -o data/countries.json                # custom output path
 ```
 
-Flags: `-o` (default `cmd/mmdb-write/data/countries.json`).
+Flags: `-o` (default `cmd/mmdb-write/data/countries.json`), `-wikidata-url`
+(default `https://query.wikidata.org/sparql`).
 
 ---
 
