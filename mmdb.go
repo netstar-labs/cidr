@@ -52,7 +52,7 @@ func OpenMMDBBytes(data []byte) (*MMDB, error) {
 	if idx < 0 {
 		return nil, errors.New("cidr: mmdb: metadata marker not found (not a MaxMind DB)")
 	}
-	meta, _, err := decodeMMDB(data[idx+len(metaMarker):], 0, 0)
+	meta, _, err := decodeMMDB(data[idx+len(metaMarker):], 0, 0, 0)
 	if err != nil {
 		return nil, fmt.Errorf("cidr: mmdb metadata: %w", err)
 	}
@@ -65,11 +65,14 @@ func OpenMMDBBytes(data []byte) (*MMDB, error) {
 		return nil, fmt.Errorf("cidr: mmdb: unsupported record_size %d", recordSize)
 	}
 	nodeCount := uintOf(mm["node_count"])
-	nodeSize := recordSize * 2 / 8
-	treeSize := nodeCount * nodeSize
-	if int(treeSize)+16 > len(data) {
+	nodeSize := recordSize * 2 / 8 // 6, 7, or 8 (recordSize validated above)
+	// bound node_count against the file: nodeCount*nodeSize must fit, tested with a
+	// division so a crafted node_count cannot overflow the multiply and wrap treeSize
+	// small/negative (which would defeat this guard and yield a garbage dataStart).
+	if len(data) < 16 || nodeCount > (uint(len(data))-16)/nodeSize {
 		return nil, errors.New("cidr: mmdb: truncated (search tree exceeds file)")
 	}
+	treeSize := nodeCount * nodeSize
 	return &MMDB{
 		data:       data,
 		nodeCount:  nodeCount,
@@ -86,8 +89,10 @@ func OpenMMDBBytes(data []byte) (*MMDB, error) {
 // ip_version, database_type, description, build_epoch, …).
 func (m *MMDB) Metadata() map[string]any { return m.metadata }
 
-// Close releases the underlying buffer. Present for API symmetry / future mmap.
-func (m *MMDB) Close() error { m.data = nil; return nil }
+// Close is a no-op: the database is a plain in-memory buffer, reclaimed by GC once the
+// MMDB is unreferenced. It exists for API symmetry (and a future mmap backend) and does
+// NOT release the buffer, so it is safe to call concurrently with in-flight Lookups.
+func (m *MMDB) Close() error { return nil }
 
 // Lookup returns the record for ip as a decoded map (the shape depends on the
 // database's schema: ASN, country, or any custom fields the producer packed).
@@ -126,7 +131,7 @@ func (m *MMDB) lookupValue(ip net.IP) (any, bool, error) {
 		return nil, false, nil // ran out of address bits inside the tree
 	}
 	off := int(m.treeSize) + int(node-m.nodeCount) // == dataStart + (node - nodeCount - 16)
-	v, _, err := decodeMMDB(m.data, off, m.dataStart)
+	v, _, err := decodeMMDB(m.data, off, m.dataStart, 0)
 	if err != nil {
 		return nil, false, err
 	}
@@ -177,10 +182,22 @@ func (m *MMDB) record(node uint, right bool) (uint, error) {
 	}
 }
 
-// decodeMMDB decodes one value from buf at off. ptrBase is the offset pointers
-// are relative to (the data-section start for tree data; 0 for the self-contained
-// metadata section). Returns the value and the offset just past it.
-func decodeMMDB(buf []byte, off, ptrBase int) (any, int, error) {
+// maxMMDBDepth bounds recursion through the data section — pointer chains and nested
+// containers alike. A .mmdb is untrusted input; without this a self-referencing pointer,
+// a pointer cycle, or a deeply nested container recurses until the goroutine stack
+// overflows (an unrecoverable fatal error). Real databases nest only a few levels.
+const maxMMDBDepth = 512
+
+// decodeMMDB decodes one value from buf at off. ptrBase is the offset pointers are
+// relative to (the data-section start for tree data; 0 for the self-contained metadata
+// section). depth guards against runaway pointer/container recursion on malformed input.
+// Returns the value and the offset just past it. All lengths read from buf are treated as
+// untrusted: bounds are compared as (len(buf)-off) so off+size cannot overflow, and a
+// container's element count cannot exceed the bytes that remain.
+func decodeMMDB(buf []byte, off, ptrBase, depth int) (any, int, error) {
+	if depth > maxMMDBDepth {
+		return nil, 0, errors.New("cidr: mmdb: max pointer/nesting depth exceeded")
+	}
 	if off < 0 || off >= len(buf) {
 		return nil, 0, errors.New("cidr: mmdb: offset out of range")
 	}
@@ -224,7 +241,7 @@ func decodeMMDB(buf []byte, off, ptrBase int) (any, int, error) {
 			ptr = int(binary.BigEndian.Uint32(buf[off : off+4]))
 			off += 4
 		}
-		v, _, err := decodeMMDB(buf, ptrBase+ptr, ptrBase)
+		v, _, err := decodeMMDB(buf, ptrBase+ptr, ptrBase, depth+1)
 		return v, off, err
 	}
 
@@ -251,32 +268,36 @@ func decodeMMDB(buf []byte, off, ptrBase int) (any, int, error) {
 		off += 3
 	}
 
+	avail := len(buf) - off // bytes remaining; guards below avoid off+size overflow
 	switch typ {
 	case 2: // UTF-8 string
-		if off+size > len(buf) {
+		if size > avail {
 			return nil, 0, errTrunc
 		}
 		return string(buf[off : off+size]), off + size, nil
 	case 3: // double (IEEE-754 64-bit)
-		if off+8 > len(buf) {
+		if avail < 8 {
 			return nil, 0, errTrunc
 		}
 		return math.Float64frombits(binary.BigEndian.Uint64(buf[off : off+8])), off + 8, nil
 	case 4: // bytes
-		if off+size > len(buf) {
+		if size > avail {
 			return nil, 0, errTrunc
 		}
 		return append([]byte(nil), buf[off:off+size]...), off + size, nil
 	case 5, 6, 9: // uint16 / uint32 / uint64
-		if off+size > len(buf) {
+		if size > 8 || size > avail { // reject a width beyond the fixed type (wrong value)
 			return nil, 0, errTrunc
 		}
 		return beUint(buf[off : off+size]), off + size, nil
 	case 7: // map
-		m := make(map[string]any, size)
+		if size > avail { // each entry needs >= 1 byte: reject an amplified count
+			return nil, 0, errTrunc
+		}
+		m := make(map[string]any, min(size, 4096)) // pre-size capped; grows to the real count
 		o := off
 		for i := 0; i < size; i++ {
-			k, no, err := decodeMMDB(buf, o, ptrBase)
+			k, no, err := decodeMMDB(buf, o, ptrBase, depth+1)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -284,7 +305,7 @@ func decodeMMDB(buf []byte, off, ptrBase int) (any, int, error) {
 			if !ok {
 				return nil, 0, errors.New("cidr: mmdb: non-string map key")
 			}
-			v, no2, err := decodeMMDB(buf, no, ptrBase)
+			v, no2, err := decodeMMDB(buf, no, ptrBase, depth+1)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -293,31 +314,34 @@ func decodeMMDB(buf []byte, off, ptrBase int) (any, int, error) {
 		}
 		return m, o, nil
 	case 8: // int32 (two's complement, up to 4 bytes)
-		if off+size > len(buf) {
+		if size > 4 || size > avail {
 			return nil, 0, errTrunc
 		}
 		return int32(uint32(beUint(buf[off : off+size]))), off + size, nil
 	case 10: // uint128
-		if off+size > len(buf) {
+		if size > 16 || size > avail {
 			return nil, 0, errTrunc
 		}
 		return new(big.Int).SetBytes(buf[off : off+size]), off + size, nil
 	case 11: // array
-		arr := make([]any, size)
+		if size > avail { // each element needs >= 1 byte: reject an amplified count
+			return nil, 0, errTrunc
+		}
+		arr := make([]any, 0, min(size, 4096)) // pre-size capped; grows to the real count
 		o := off
 		for i := 0; i < size; i++ {
-			v, no, err := decodeMMDB(buf, o, ptrBase)
+			v, no, err := decodeMMDB(buf, o, ptrBase, depth+1)
 			if err != nil {
 				return nil, 0, err
 			}
-			arr[i] = v
+			arr = append(arr, v)
 			o = no
 		}
 		return arr, o, nil
 	case 14: // boolean (size is 0 or 1)
 		return size != 0, off, nil
 	case 15: // float (IEEE-754 32-bit)
-		if off+4 > len(buf) {
+		if avail < 4 {
 			return nil, 0, errTrunc
 		}
 		return math.Float32frombits(binary.BigEndian.Uint32(buf[off : off+4])), off + 4, nil
