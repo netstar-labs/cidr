@@ -210,4 +210,4 @@ Requires Go 1.25 or newer.
 
 ## License
 
-See [LICENSE](LICENSE).
+Licensed under the Apache License, Version 2.0 — see [LICENSE](LICENSE).
