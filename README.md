@@ -141,11 +141,14 @@ Cross-compile a version-stamped static binary with [`build/cidr`](build/cidr)
 
 ### More tools
 
-[`cmd/`](cmd) ships six more programs — see the [cmd README](cmd/README.md):
+[`cmd/`](cmd) ships seven more programs — see the [cmd README](cmd/README.md):
 
 - **[`ipfold`](cmd/ipfold)** — fold an unorganized IP list into the minimal CIDR
   set (`10.0.0.12`, `.13`, `.14`, `.15` → `10.0.0.12/30`); built for 100M+
   addresses (`ipfold < ips.txt`).
+- **[`ipunfold`](cmd/ipunfold)** — the inverse: expand CIDRs back into the
+  individual addresses they cover (`ipunfold < cidrs.txt`), with `-count` to
+  size the output first and `-max` to bound it.
 - **[`iptoasn`](cmd/iptoasn)**, **[`mm-geolite2-asn`](cmd/mm-geolite2-asn)**,
   **[`mm-dbip`](cmd/mm-dbip)** — fetch a provider's IP-to-ASN/geo table and
   write the cidr spec, with an optional systemd generator (see

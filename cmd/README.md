@@ -1,6 +1,6 @@
 # Command-line tools
 
-Seven programs built on the [`cidr`](..) package. Install any one with
+Eight programs built on the [`cidr`](..) package. Install any one with
 `go install github.com/netstar-labs/cidr/cmd/<name>@latest`, or cross-compile a
 version-stamped static `linux/amd64` binary with the matching
 [`build/<name>`](../build) script (`build/<name> [user@host]` optionally installs
@@ -10,6 +10,7 @@ it over ssh). Each prints its build with `-version`.
 |---|---|---|
 | [`cidr`](cidr) | look up addresses against a CIDR/ASN spec — membership + longest-prefix value |
 | [`ipfold`](ipfold) | fold an unorganized IP list into the minimal CIDR set |
+| [`ipunfold`](ipunfold) | expand CIDRs back into the individual addresses they cover |
 | [`iptoasn`](iptoasn) | fetch iptoasn.com → `<cidr> <ASN> <org>` or `<cidr> <country>` spec |
 | [`mm-geolite2-asn`](mm-geolite2-asn) | fetch MaxMind GeoLite2 ASN → ASN spec |
 | [`mm-dbip`](mm-dbip) | fetch DB-IP Lite (country or ASN) → cidr spec |
@@ -45,6 +46,30 @@ ipfold -4 < ips.txt              # IPv4 output only
 Built for scale: IPv4 aggregates through a 2³²-bit bitmap (bounded ~512 MiB,
 O(n), duplicate-robust) and parses straight from bytes — ~120M addresses fold in
 roughly 20 s at ~0.5 GiB. The output is a valid spec for `cidr -spec`.
+
+### `ipunfold` — expand CIDRs to an address list
+
+The inverse of `ipfold`: reads CIDR prefixes and writes every address each one
+covers, one per line. A bare address is accepted as its own `/32` or `/128` (so
+an `ipfold` output round-trips), host bits in a prefix are masked rather than
+rejected, and only the first field of a line is read — so a `<cidr> <ASN> <org>`
+spec expands too.
+
+```sh
+ipunfold < cidrs.txt              # expand stdin -> stdout
+ipunfold -in cidrs.txt -o ips.txt
+ipunfold -4 < cidrs.txt           # IPv4 prefixes only
+ipunfold -count < cidrs.txt       # how many addresses would this be?
+```
+
+Expansion streams in input order — nothing is buffered, sorted, or
+de-duplicated, so overlapping input prefixes emit overlapping addresses (pipe
+through `ipfold` to normalize). Output is unbounded by nature: one `/8` is 16.7M
+addresses (~0.3 s) and an IPv6 `/64` is 1.8×10¹⁹. Check the size with `-count`
+first; in scripts, `-max N` aborts with a non-zero exit before the prefix that
+would push output past `N`, keeping whatever was already written.
+
+Flags: `-in`, `-o`, `-4`, `-6`, `-count`, `-max` (default 0: no limit), `-version`.
 
 ### `mmdb-write` — compile cidr spec to MaxMind DB
 

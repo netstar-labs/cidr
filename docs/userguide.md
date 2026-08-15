@@ -354,6 +354,31 @@ input) — ~120M addresses fold to CIDRs in roughly 20 s at ~0.5 GiB. Build a
 stamped binary with `build/ipfold [user@host]`. The output is a valid spec for
 `LoadSet`.
 
+### Expanding CIDRs to addresses (`cmd/ipunfold`)
+
+[`cmd/ipunfold`](../cmd/ipunfold) is the inverse: it reads CIDR prefixes and
+writes every address each one covers, one per line — `10.0.0.12/30` unfolds back
+to `10.0.0.12`, `.13`, `.14`, `.15`. A bare address is accepted as its own `/32`
+or `/128`, host bits in a prefix are masked rather than rejected, and only the
+first field of a line is read, so an `ipfold` output round-trips and a
+`<cidr> <ASN> <org>` spec expands too.
+
+```sh
+ipunfold < cidrs.txt              # expand stdin -> stdout, in input order
+ipunfold -in cidrs.txt -o ips.txt
+ipunfold -4 < cidrs.txt           # IPv4 prefixes only
+ipunfold -count < cidrs.txt       # size the output before writing it
+```
+
+Expansion streams in input order and nothing is buffered, sorted, or
+de-duplicated, so overlapping input prefixes emit overlapping addresses — pipe
+through `ipfold` to normalize. Unlike folding, the output size is set by the
+input's *coverage*, not its line count: a single `/8` is 16.7M addresses
+(~0.3 s) and an IPv6 `/64` is 1.8×10¹⁹. Use `-count` to check first, and `-max N`
+in scripts, which aborts with a non-zero exit before the prefix that would push
+output past `N` (keeping whatever was already written). Build a stamped binary
+with `build/ipunfold [user@host]`.
+
 ## Parsing prefixes and addresses
 
 - `cidr.ParsePrefix(s)` accepts a CIDR (`"10.0.0.0/8"`, `"2001:db8::/32"`) or a
