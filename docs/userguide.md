@@ -329,6 +329,22 @@ build/mmdb-iptoasn-write --generator user@host            # daily -> iptoasn-asn
 host the install package is left under `build/install/` to copy and run
 (`sudo ./<tool>.sh`) yourself.
 
+`build/iptoasn` reads `OUTFILE`, `GENARGS`, and `TIMER` from the environment,
+so one installer can emit a different dataset shape without editing the script.
+`OUTFILE` is the file written into `/var/lib/cidr/`, `GENARGS` the switches
+handed to the generator, and `TIMER` the `OnCalendar` expression; unset, each
+keeps the default above. To schedule the combined ASN + country spec
+(`<cidr> <ASN> <CC> <org>`) that a `Table[V]` carrying both fields expects:
+
+```sh
+OUTFILE=iptoasn-asn-cc.cidr GENARGS="-family combined -country" \
+    build/iptoasn --generator user@host
+```
+
+Note the default `GENARGS` produces `<cidr> <ASN> <org>` with **no** country
+column, so a loader that reads field 3 as a country code must be pointed at a
+spec built with `-country` — the two differ only in a column, not a filename.
+
 For `mm-geolite2-asn`, `--generator` **requires `--key`** (MaxMind downloads are
 authenticated) and refuses to build without one. The key is written to a
 mode-600 `EnvironmentFile` (`/etc/cidr/mm-geolite2-asn.env`) that the service

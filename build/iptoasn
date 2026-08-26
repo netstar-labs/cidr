@@ -29,9 +29,14 @@ BINARY=iptoasn
 CMD=./cmd/iptoasn
 DESC="iptoasn IP-to-ASN cidr generator"
 STAGEDIR=/var/lib/cidr            # generated output directory
-OUTFILE=ip2asn.cidr               # generated file (STAGEDIR/OUTFILE)
-GENARGS="-family combined"        # generator switches
-TIMER="*-*-* 02:20:00 UTC"        # daily (iptoasn refreshes often)
+# OUTFILE/GENARGS/TIMER may be overridden from the environment so one installer
+# can emit a different dataset shape, e.g. the ASN+country spec consumed by
+# insite's publisher:
+#   OUTFILE=iptoasn-asn-cc.cidr GENARGS="-family combined -country" \
+#       build/iptoasn --generator user@host
+: "${OUTFILE:=ip2asn.cidr}"       # generated file (STAGEDIR/OUTFILE)
+: "${GENARGS:=-family combined}"  # generator switches
+: "${TIMER:=*-*-* 02:20:00 UTC}"  # daily (iptoasn refreshes often)
 
 # ---- common ------------------------------------------------------------------
 BIN=/usr/local/bin
