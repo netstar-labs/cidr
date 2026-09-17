@@ -7,7 +7,7 @@ version-stamped static `linux/amd64` binary with the matching
 it over ssh). Each prints its build with `-version`.
 
 | Tool | Purpose |
-|---|---|---|
+|---|---|
 | [`cidr`](cidr) | look up addresses against a CIDR/ASN spec — membership + longest-prefix value |
 | [`ipfold`](ipfold) | fold an unorganized IP list into the minimal CIDR set |
 | [`ipunfold`](ipunfold) | expand CIDRs back into the individual addresses they cover |

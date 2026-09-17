@@ -372,7 +372,7 @@ func addV4(a netip.Addr, n uint64) (netip.Addr, bool) {
 // purpose: the ipv4 branch of parseLine carries an address *count* and derives
 // its bound with addV4, so a v4 prefix never reaches here. A general version
 // would be an untested, unreachable path. (The library has an equivalent
-// helper, but it is unexported — see docs/audits/audit-dedup.md.)
+// helper at cidr.go, but it is unexported, so package main cannot reach it.)
 func lastAddr6(p netip.Prefix) netip.Addr {
 	b := p.Addr().As16()
 	for i := p.Bits(); i < 128; i++ {
