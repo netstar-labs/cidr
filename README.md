@@ -38,8 +38,6 @@ No dependency beyond the Go standard library.
   longest-prefix match, benchmarks, and the trie trade-off
 - **Operations** — [User guide](docs/userguide.md): the API, the spec and refs
   formats, data sources, the CLI, and day-2 refresh
-- **Audits** — [docs/audits/](docs/audits/): the adversarial passes, every claim
-  with its verdict, and [open-items](docs/audits/open-items.md)
 - **Examples** — [example/README](example/README.md): library, HTTP, Unix-socket,
   and MCP integrations
 
