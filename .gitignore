@@ -34,3 +34,4 @@ build/host
 /cmd/mm-geolite2-asn/mm-geolite2-asn
 /cmd/mmdb-build-countries/mmdb-build-countries
 /cmd/mmdb-write/mmdb-write
+/cmd/rir-country/rir-country

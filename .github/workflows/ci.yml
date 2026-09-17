@@ -18,3 +18,5 @@ jobs:
       - run: go test ./... -count=1
       # short fuzz pass over the spec parser and build/query path
       - run: go test -run xxx -fuzz FuzzParseSpec -fuzztime 15s .
+      # and over the RIR delegated-record parser, which reads fetched bytes
+      - run: go test -run xxx -fuzz FuzzParseLine -fuzztime 15s ./cmd/rir-country
