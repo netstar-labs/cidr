@@ -205,6 +205,7 @@ provides *CIDR (or range) + value*:
 
 | Source | Format | Native shape | Access | Notes |
 |---|---|---|---|---|
+| **RIR delegated-extended** | `reg\|cc\|type\|start\|value\|date\|status` | **range** (v4 count) | free, no account | the **primary** country record; the five RIRs publish it and vendor country sets derive from it — `cmd/rir-country` |
 | **MaxMind GeoLite2 ASN** | CSV: `network,asn,org` | CIDR | free account + key | 1:1 with the ASN spec; separate v4/v6; CC BY-SA — `cmd/mm-geolite2-asn` |
 | **iptoasn.com** | TSV: `start end asn cc desc` | **range** | free, no account | easiest bulk; hourly — `cmd/iptoasn` |
 | **CAIDA / RouteViews pfx2as** | `prefix<tab>len<tab>AS` | CIDR | free/open | from the live BGP table; no org names (join AS→org separately) |
@@ -215,7 +216,7 @@ provides *CIDR (or range) + value*:
 
 ### Fetch/convert tools
 
-Three tools under [`cmd/`](../cmd) fetch a provider's table and write the cidr
+Four tools under [`cmd/`](../cmd) fetch a source's table and write the cidr
 spec directly: range-based sources are decomposed to CIDRs (via
 `RangePrefixes`), CIDR-native sources pass through. Each also reads a local file
 with `-in` (gzip auto-detected) and writes to stdout or `-o FILE`, with a tally
@@ -261,6 +262,45 @@ mm-dbip -in dbip-country-lite-2026-07.csv.gz
 
 Flags: `-db` (`country`/`asn`), `-month` (default: current UTC month), `-url`,
 `-in`, `-o`, `-timeout`. Without `-in`/`-url` the current month's file is fetched.
+
+**[`cmd/rir-country`](../cmd/rir-country)** — the five RIR delegated-extended
+files → `<cidr> <country>` (`LoadFunc`). No account, no licence key, no vendor:
+this is the record the registries publish themselves, and the vendor country
+datasets derive from it.
+
+```sh
+rir-country -o rir-country.cidr             # all five registries
+rir-country -registry lacnic -o lacnic.cidr # one registry
+rir-country -in arin.txt,ripencc.txt        # local files, comma-separated
+```
+
+Flags: `-registry` (`all`/`afrinic`/`apnic`/`arin`/`lacnic`/`ripencc`),
+`-conflict` (`date`/`specific`), `-conflict-log FILE`, `-in`, `-o`, `-timeout`.
+
+The ipv4 `value` field is an address **count**, not a prefix length, and it is
+often not a power of two (763 such records as published on 2026-09-17), so a
+single record can decompose into several prefixes via `RangePrefixes`. Only `allocated`/`assigned` ipv4/ipv6 rows
+carrying a two-letter country are kept; asn rows, summary lines, the version
+header, and `reserved`/`available` blocks are skipped. A reserved block is not
+delegated to a country, so addresses inside one correctly **miss**.
+
+Two registries occasionally claim the same prefix with different countries — a
+handful at any time (two, as published on 2026-09-17). `-conflict` picks the
+rule:
+
+| Rule | Resolves by |
+|---|---|
+| `date` *(default)* | the later delegation date wins |
+| `specific` | the narrower source allocation wins |
+
+Prefixes of *different* lengths never conflict here: both are written and
+longest-prefix match resolves them at load, which is already "most specific
+wins". Where the chosen rule cannot separate two records — equal dates, or
+equally specific sources — the lower country code wins, so the output does not
+depend on the order the files were read. Every conflict is printed on stderr
+(capped at ten, with the remainder counted); `-conflict-log FILE` writes them
+all as TSV. Output is sorted, so repeated runs over the same input are
+byte-identical and can be checksummed.
 
 **[`cmd/mmdb-write`](../cmd/mmdb-write)** — compiles any cidr spec into a MaxMind
 DB (`.mmdb`) file. The output schema is selected by `-db-type`:
@@ -321,6 +361,7 @@ the MMDB compile runs daily, from iptoasn):
 ```sh
 build/iptoasn --generator user@host                       # daily    -> ip2asn.cidr
 build/mm-dbip --generator user@host                       # monthly  -> dbip-country.cidr
+build/rir-country --generator user@host                   # daily    -> rir-country.cidr
 build/mm-geolite2-asn --generator --key YOUR_KEY user@host # weekly   -> geolite2-asn.cidr
 build/mmdb-iptoasn-write --generator user@host            # daily -> iptoasn-asn.mmdb + iptoasn-country.mmdb
 ```

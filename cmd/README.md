@@ -1,6 +1,6 @@
 # Command-line tools
 
-Eight programs built on the [`cidr`](..) package. Install any one with
+Nine programs built on the [`cidr`](..) package. Install any one with
 `go install github.com/netstar-labs/cidr/cmd/<name>@latest`, or cross-compile a
 version-stamped static `linux/amd64` binary with the matching
 [`build/<name>`](../build) script (`build/<name> [user@host]` optionally installs
@@ -14,6 +14,7 @@ it over ssh). Each prints its build with `-version`.
 | [`iptoasn`](iptoasn) | fetch iptoasn.com → `<cidr> <ASN> <org>` or `<cidr> <country>` spec |
 | [`mm-geolite2-asn`](mm-geolite2-asn) | fetch MaxMind GeoLite2 ASN → ASN spec |
 | [`mm-dbip`](mm-dbip) | fetch DB-IP Lite (country or ASN) → cidr spec |
+| [`rir-country`](rir-country) | fetch the five RIR delegated files → country spec, from the primary record |
 | [`mmdb-write`](mmdb-write) | compile a cidr spec into a MaxMind DB (`.mmdb`) file |
 | [`mmdb-build-countries`](mmdb-build-countries) | update Wikidata country nomenclature for `.mmdb` |
 
@@ -178,6 +179,38 @@ mm-dbip -in dbip-country-lite-2026-07.csv.gz
 
 Flags: `-db` (`country`/`asn`), `-month` (default: current UTC month), `-url`,
 `-in`, `-o`, `-timeout`. Without `-in`/`-url` the current month's file is fetched.
+
+### `rir-country`
+
+The five RIR delegated-extended files → `<cidr> <country>`. This is the
+**primary record** — the registries publish it themselves and the vendor country
+datasets derive from it — so there is no account, licence key or vendor terms.
+
+```sh
+rir-country -o rir-country.cidr                  # all five registries
+rir-country -registry arin -o arin.cidr          # just one
+rir-country -in arin.txt,ripencc.txt             # local files, comma-separated
+rir-country -conflict specific -o rir.cidr       # other tie-break rule
+```
+
+Flags: `-registry` (`all` or `afrinic`/`apnic`/`arin`/`lacnic`/`ripencc`),
+`-conflict` (`date`/`specific`), `-conflict-log FILE`, `-in`, `-o`, `-timeout`.
+
+For ipv4 the published `value` is an address **count** and is not always a power
+of two (763 such records as published on 2026-09-17), so one record can become
+several prefixes. Only `allocated`/`assigned`
+ipv4/ipv6 rows with a two-letter country are kept; asn rows, summaries, the
+version header and `reserved`/`available` blocks are skipped.
+
+**Conflicts.** Two registries can claim the same prefix with different
+countries. `-conflict date` (default) takes the later delegation date;
+`-conflict specific` takes the narrower source allocation. Prefixes of
+*different* lengths never collide — the spec keeps both and longest-prefix match
+resolves them at load, which is already "most specific wins". Where the rule
+cannot separate two records the lower country code wins so output does not
+depend on input order, and **every** conflict is reported on stderr
+(`-conflict-log FILE` writes them all as TSV). Output is sorted, so two runs
+over the same input are byte-identical.
 
 ### `mmdb-build-countries`
 

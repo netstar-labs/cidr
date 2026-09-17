@@ -38,6 +38,8 @@ No dependency beyond the Go standard library.
   longest-prefix match, benchmarks, and the trie trade-off
 - **Operations** — [User guide](docs/userguide.md): the API, the spec and refs
   formats, data sources, the CLI, and day-2 refresh
+- **Audits** — [docs/audits/](docs/audits/): the adversarial passes, every claim
+  with its verdict, and [open-items](docs/audits/open-items.md)
 - **Examples** — [example/README](example/README.md): library, HTTP, Unix-socket,
   and MCP integrations
 
@@ -153,6 +155,8 @@ Cross-compile a version-stamped static binary with [`build/cidr`](build/cidr)
   **[`mm-dbip`](cmd/mm-dbip)** — fetch a provider's IP-to-ASN/geo table and
   write the cidr spec, with an optional systemd generator (see
   [data sources](docs/userguide.md#data-sources)).
+- **[`rir-country`](cmd/rir-country)** — build a country spec from the five RIR
+  delegated files: the primary record, with no account, key or vendor terms.
 - **[`mmdb-write`](cmd/mmdb-write)** — compile a cidr spec into a MaxMind DB
   (`.mmdb`) file, supporting both ASN (`GeoIP2-ASN`-compatible) and Country
   (`GeoLite2-Country`-compatible) output schemas. Pipe any data generator
