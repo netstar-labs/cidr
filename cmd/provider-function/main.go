@@ -12,10 +12,11 @@
 //
 // # Function is three values, on purpose
 //
-// An address's function — hosting, CDN, residential, mobile, transit, VPN exit,
-// scanner — is the axis ipdb's design docs argue an IP record should assert.
-// Sources that publish their own address space can honestly support three of
-// those labels:
+// The useful question about an address is usually what it is *for* — hosting,
+// CDN, residential, mobile carrier, transit, VPN exit, scanner — rather than
+// what is hosted on it, which is a property of a domain projected onto a routing
+// endpoint. Sources that publish their own address space can honestly support
+// three of those labels:
 //
 //	cloud     general compute and service ranges
 //	cdn       content-delivery edge
@@ -104,7 +105,7 @@ import (
 )
 
 // The function labels published operator ranges can support. See the package
-// doc for why the rest of ipdb's taxonomy is not here.
+// doc for why the wider set (residential, mobile, transit, scanner) is not here.
 const (
 	funcCloud   = "cloud"
 	funcCDN     = "cdn"
@@ -585,8 +586,7 @@ func closeAll(s []source) {
 func fetch(url string, timeout time.Duration) (io.ReadCloser, error) {
 	client := &http.Client{Transport: &http.Transport{
 		// A hand-built Transport has a nil Proxy, which silently ignores
-		// HTTPS_PROXY/HTTP_PROXY/NO_PROXY — unlike http.DefaultTransport. The
-		// other four generators share the omission (audit B1, 2026-09-21).
+		// HTTPS_PROXY/HTTP_PROXY/NO_PROXY — unlike http.DefaultTransport.
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           (&net.Dialer{Timeout: timeout}).DialContext,
 		TLSHandshakeTimeout:   timeout,
