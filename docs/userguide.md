@@ -206,6 +206,7 @@ provides *CIDR (or range) + value*:
 | Source | Format | Native shape | Access | Notes |
 |---|---|---|---|---|
 | **RIR delegated-extended** | `reg\|cc\|type\|start\|value\|date\|status` | **range** (v4 count) | free, no account | the **primary** country record; the five RIRs publish it and vendor country sets derive from it — `cmd/rir-country` |
+| **Operator-published ranges** | JSON (AWS, Google Cloud, Fastly) or one-per-line text (Cloudflare, Tor) | CIDR-native (Tor: bare addresses) | free, public endpoints | also a **primary** record — the operator publishes its own space; `<cidr> <function> <provider> [anycast]` for `LoadFunc`, not `LoadASN` — `cmd/provider-function` |
 | **MaxMind GeoLite2 ASN** | CSV: `network,asn,org` | CIDR | free account + key | 1:1 with the ASN spec; separate v4/v6; CC BY-SA — `cmd/mm-geolite2-asn` |
 | **iptoasn.com** | TSV: `start end asn cc desc` | **range** | free, no account | easiest bulk; hourly — `cmd/iptoasn` |
 | **CAIDA / RouteViews pfx2as** | `prefix<tab>len<tab>AS` | CIDR | free/open | from the live BGP table; no org names (join AS→org separately) |
@@ -302,6 +303,52 @@ depend on the order the files were read. Every conflict is printed on stderr
 all as TSV. Output is sorted, so repeated runs over the same input are
 byte-identical and can be checksummed.
 
+**[`cmd/provider-function`](../cmd/provider-function)** — the address space
+operators publish about themselves → `<cidr> <function> <provider> [anycast]`
+(`LoadFunc`, **not** `LoadASN`). Another primary record: AWS publishes AWS's
+ranges, the Tor Project publishes Tor's exits, so nothing infers anything.
+
+```sh
+provider-function -o provider-function.cidr   # all five providers
+provider-function -provider aws -o aws.cidr   # one
+provider-function -in aws=ip-ranges.json      # local files, provider=path
+```
+
+Flags: `-provider` (`all`/`aws`/`cloudflare`/`fastly`/`google-cloud`/`tor`),
+`-in`, `-o`, `-conflict-log FILE`, `-timeout`. `-in` takes `provider=path` pairs
+rather than a bare path — the five feeds have four shapes, so the format cannot
+be inferred from a filename — and, unlike the other generators, does not
+auto-detect gzip. With both `-in` and `-provider`, `-in` wins and says so.
+
+Function is a closed set of three: `cloud`, `cdn`, `tor-exit`. Sources that
+publish their own space cannot honestly support `residential`, `mobile`,
+`transit` or `scanner` — nobody publishes a "these are consumer broadband" file
+— so those labels need other sources and arrive with them. The optional
+`anycast` marker is applied **only** where the operator's own documentation uses
+the word (AWS Global Accelerator, Cloudflare, Fastly); CloudFront and Route 53
+are deliberately unmarked, because the only claim this table can defend is "the
+operator said so". It is not an anycast detector.
+
+AWS lists a prefix once per service it belongs to, with `AMAZON` as a catch-all
+superset — 2,298 of 7,795 distinct IPv4 prefixes as published on 2026-09-21 — so
+within one operator's feed a service with an explicit mapping outranks the
+catch-all. **That specificity rule stops at the provider boundary**: it says
+nothing about two different operators, so a disagreement between them is counted
+and reported on stderr, never resolved silently. `-conflict-log FILE` writes
+every one as TSV. Output is sorted and byte-identical across runs.
+
+Nothing fails quietly: unusable rows are counted per provider as
+`malformed[...]`, an attempted provider appears in `records[...]` even at zero,
+and a source that produced **no** usable rows is a hard error with no file
+written — none of these feeds is legitimately empty, so zero rows means the
+fetch or the parse broke, and writing anyway would truncate the published spec
+on a "successful" timer run.
+
+To add a source, see
+[Adding another source](../cmd/README.md#adding-another-source) — the first
+question is whether the source describes its *own* address space, because an
+inferential source belongs in its own generator, not mixed in with these.
+
 **[`cmd/mmdb-write`](../cmd/mmdb-write)** — compiles any cidr spec into a MaxMind
 DB (`.mmdb`) file. The output schema is selected by `-db-type`:
 `GeoLite2-ASN` (default) or `GeoLite2-Country`.
@@ -362,6 +409,7 @@ the MMDB compile runs daily, from iptoasn):
 build/iptoasn --generator user@host                       # daily    -> ip2asn.cidr
 build/mm-dbip --generator user@host                       # monthly  -> dbip-country.cidr
 build/rir-country --generator user@host                   # daily    -> rir-country.cidr
+build/provider-function --generator user@host              # daily    -> provider-function.cidr
 build/mm-geolite2-asn --generator --key YOUR_KEY user@host # weekly   -> geolite2-asn.cidr
 build/mmdb-iptoasn-write --generator user@host            # daily -> iptoasn-asn.mmdb + iptoasn-country.mmdb
 ```

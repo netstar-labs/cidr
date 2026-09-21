@@ -155,6 +155,10 @@ Cross-compile a version-stamped static binary with [`build/cidr`](build/cidr)
   [data sources](docs/userguide.md#data-sources)).
 - **[`rir-country`](cmd/rir-country)** — build a country spec from the five RIR
   delegated files: the primary record, with no account, key or vendor terms.
+- **[`provider-function`](cmd/provider-function)** — build a
+  `<cidr> <function> <provider>` spec from the address space operators publish
+  about themselves (AWS, Google Cloud, Cloudflare, Fastly, Tor): also a primary
+  record, and the seam for adding further sources.
 - **[`mmdb-write`](cmd/mmdb-write)** — compile a cidr spec into a MaxMind DB
   (`.mmdb`) file, supporting both ASN (`GeoIP2-ASN`-compatible) and Country
   (`GeoLite2-Country`-compatible) output schemas. Pipe any data generator

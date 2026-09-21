@@ -1,6 +1,6 @@
 # Command-line tools
 
-Nine programs built on the [`cidr`](..) package. Install any one with
+Ten programs built on the [`cidr`](..) package. Install any one with
 `go install github.com/netstar-labs/cidr/cmd/<name>@latest`, or cross-compile a
 version-stamped static `linux/amd64` binary with the matching
 [`build/<name>`](../build) script (`build/<name> [user@host]` optionally installs
@@ -15,6 +15,7 @@ it over ssh). Each prints its build with `-version`.
 | [`mm-geolite2-asn`](mm-geolite2-asn) | fetch MaxMind GeoLite2 ASN → ASN spec |
 | [`mm-dbip`](mm-dbip) | fetch DB-IP Lite (country or ASN) → cidr spec |
 | [`rir-country`](rir-country) | fetch the five RIR delegated files → country spec, from the primary record |
+| [`provider-function`](provider-function) | fetch AWS/Google/Cloudflare/Fastly/Tor published ranges → `<cidr> <function> <provider>` spec |
 | [`mmdb-write`](mmdb-write) | compile a cidr spec into a MaxMind DB (`.mmdb`) file |
 | [`mmdb-build-countries`](mmdb-build-countries) | update Wikidata country nomenclature for `.mmdb` |
 
@@ -129,13 +130,25 @@ daily oneshot service + timer that fetches iptoasn.com and compiles
 
 ## Data generators (fetch + convert)
 
-Each downloads a provider's IP-to-ASN/geo table and writes the cidr spec that
-`cidr.LoadASN` / `cmd/cidr` read back; range-based sources are decomposed to
-CIDRs. All take `-in FILE` (local, gzip auto-detected) instead of fetching, and
-write stdout or `-o FILE` with a tally on stderr. Each also has a
-`build/<name> --generator` mode that installs a oneshot systemd service + timer
-to regenerate the spec into `/var/lib/cidr/` on a schedule — see the
-[user guide](../docs/userguide.md#scheduled-generation-systemd).
+Each downloads a provider's table and writes a cidr spec; range-based sources
+are decomposed to CIDRs. All write stdout or `-o FILE` with a tally on stderr,
+and each has a `build/<name> --generator` mode that installs a oneshot systemd
+service + timer to regenerate the spec into `/var/lib/cidr/` on a schedule — see
+the [user guide](../docs/userguide.md#scheduled-generation-systemd).
+
+Two things differ per generator, so check the tool's own section rather than
+assuming:
+
+- **Which loader reads the output back.** The ASN/geo generators emit
+  `<cidr> <ASN> <org>` or `<cidr> <country>` for `cidr.LoadASN` / `cmd/cidr`.
+  `provider-function` does not: its value is not an ASN, so it needs
+  `cidr.LoadFunc`. **`LoadASN` will not reject it** — `parseSpecLine` accepts a
+  non-numeric second field and folds the rest into `Org`, so `cidr -spec` on a
+  function table silently reports `"org":"cloud aws"`. Use the right loader.
+- **The `-in` form.** Most take `-in FILE` (local, gzip auto-detected).
+  `provider-function` takes `-in provider=path` pairs and does not auto-detect
+  gzip, because its five feeds have four different shapes and the format cannot
+  be inferred from a filename.
 
 ### `iptoasn`
 
@@ -211,6 +224,144 @@ cannot separate two records the lower country code wins so output does not
 depend on input order, and **every** conflict is reported on stderr
 (`-conflict-log FILE` writes them all as TSV). Output is sorted, so two runs
 over the same input are byte-identical.
+
+### `provider-function`
+
+The address space operators publish about themselves →
+`<cidr> <function> <provider> [anycast]`. Like `rir-country`, this is the
+**primary record** — the operator publishes the list, so there is no account,
+licence key, vendor terms, or heuristic between the source and the answer.
+
+```sh
+provider-function                                # all five providers
+provider-function -provider aws -o aws.cidr      # one
+provider-function -in aws=ip-ranges.json         # local files, provider=path
+```
+
+Flags: `-provider` (`all` or `aws`/`cloudflare`/`fastly`/`google-cloud`/`tor`),
+`-in`, `-o`, `-conflict-log FILE`, `-timeout`. Giving both `-in` and `-provider`
+lets `-in` win, with a warning on stderr.
+
+**Nothing fails quietly.** Unusable rows are counted per provider and reported as
+`malformed[...]`; an attempted provider always appears in `records[...]`, at zero
+if it yielded nothing. A source that produced **no** usable rows is a hard error
+and no output file is written — none of these feeds is ever legitimately empty,
+so zero rows means the fetch or the parse broke, and writing the file anyway
+would truncate the published spec on a "successful" `--generator` timer run.
+
+Sources: AWS `ip-ranges.json`, Google Cloud `cloud.json`, Cloudflare `ips-v4` +
+`ips-v6`, Fastly `public-ip-list`, Tor `torbulkexitlist`. Read back with
+`cidr.LoadFunc` — the value is not an ASN, so `LoadASN` is the wrong loader.
+
+**Function is three labels, on purpose.** `cloud`, `cdn` and `tor-exit` are what
+self-published address space can honestly support; nobody publishes a "these are
+consumer broadband" file, so `residential`, `mobile`, `transit` and `scanner`
+need other sources and arrive with them. A taxonomy wider than the evidence
+would make the table look complete while the missing labels are merely absent.
+
+**`tor-exit` is perishable in a way the others are not.** Cloud and CDN ranges
+change slowly; Tor exit relays churn constantly, so the bulk list is a snapshot
+of who was exiting when it was fetched. A daily build both carries relays that
+have since stopped and misses ones that have since started — it is accurate
+about the past, not the present, and "not in the table" is not "not a Tor exit".
+Rebuild on the cadence the decision needs. The other four are fine daily.
+
+**The `anycast` marker is conservative.** It appears only where the operator's
+own documentation uses the word: AWS Global Accelerator ("static anycast IP
+addresses"), Cloudflare and Fastly. CloudFront and Route 53 are deliberately not
+marked even though a commercial dataset would mark both — the only claim this
+table can defend is "the operator said so", and one inferred row mixed in with
+published ones leaves a consumer unable to tell which kind any row is. This is
+not an anycast detector: it covers addresses whose operator publishes a list,
+which is most of the traffic-carrying anycast space and almost none of the tail.
+
+A full run on 2026-09-21 produced 13,796 **prefixes**: 11,273 AWS, 1,377 Tor
+exits, 1,103 Google Cloud, 22 Cloudflare, 21 Fastly, with no cross-provider
+conflicts. Note the tool's own stderr tally reports `records[...]` per provider
+— published records, which exceed prefixes because AWS lists a prefix once per
+service (17,526 AWS records collapse to 11,273 prefixes). The single `prefixes=`
+figure on that line is the one to compare against the numbers above.
+
+**Overlapping prefixes.** AWS lists a prefix once per service it belongs to, and
+`AMAZON` is a catch-all superset of the specific ones — as published on
+2026-09-21, 2,298 of 7,795 distinct IPv4 prefixes carried more than one label.
+A service with an explicit mapping (`CLOUDFRONT` → cdn, `GLOBALACCELERATOR` →
+cloud + anycast) outranks the catch-all, so a CDN edge cannot be silently
+downgraded to generic cloud by JSON order. A prefix left claimed by two
+different functions is counted and reported on stderr, never resolved silently;
+`-conflict-log` writes every one as TSV. Output is sorted, so two runs over the
+same input are byte-identical.
+
+#### Adding another source
+
+Three questions decide *where* a new source goes, in order. Getting the first
+one wrong is the expensive mistake, because it is the one that quietly devalues
+the existing table.
+
+**1. Does the source describe its own address space?** Everything in
+`provider-function` is a *primary record* — AWS publishes AWS's ranges, the Tor
+Project publishes Tor's exits. That is the whole reason a consumer can trust a
+row without knowing anything else about how it was produced.
+
+A source that *infers* something about somebody else's addresses — a
+reverse-DNS naming classifier, an ASN-organisation-name heuristic, a commercial
+usage-type feed — does **not** belong in this command, however good it is. Mixing
+inferred rows in with published ones leaves a consumer unable to tell which kind
+any given row is, and the provenance boundary should be a file and binary
+boundary, not a column that a downstream reader can forget to check. Give it its
+own generator writing its own spec, and let the consumer merge the two knowing
+which is which. Adding a *confidence* column is the right move there, and the
+wrong move here — every row in this file is equally, maximally attested.
+
+**2. Is the shape range-like and slow-moving?** `cidr` builds a static table and
+answers longest-prefix lookups against it. A time-bounded behavioural
+observation ("this address was scanning last Tuesday") is a log with a TTL, not
+a prefix table, and forcing it into a spec file loses the one property that
+makes it meaningful.
+
+**3. If yes to both — add a provider.** It is a map entry and a parser:
+
+```go
+// 1. a label, if the source supports one the closed set does not already carry
+const funcExample = "example"
+
+// 2. the provider's own published feed(s) and the parser for their shape
+"example": {
+    urls:  []string{"https://example.net/ranges.json"},
+    parse: parseExample,
+},
+
+// 3. the name, in providerOrder — this fixes fetch order AND the tie-break
+//    when two operators disagree, so its position is a deliberate statement
+//    about which source wins, not an alphabetical accident
+var providerOrder = []string{"aws", "cloudflare", "example", "fastly", …}
+```
+
+A parser hands **raw prefix strings** up to the collector rather than parsing
+them itself:
+
+```go
+func parseExample(r io.Reader, emit func(string, entry)) error {
+    // decode, then for each range:
+    emit(rawPrefixString, entry{function: funcExample})
+    return nil
+}
+```
+
+That is deliberate: parsing in one place is what gives the malformed counter a
+single home. A parser that calls `cidr.ParsePrefix` itself and drops failures
+silently is how this command originally shipped a feed-shape change as a
+zero-byte file and a clean exit.
+
+For a plain one-prefix-per-line feed there is no parser to write at all — reuse
+`parseLineList(entry{...})`, as Cloudflare and Tor do.
+
+**What you get for free**, and therefore must not re-implement per provider:
+malformed counting, the zero-rows-is-an-error guard, deterministic sorted output,
+conflict detection and reporting, and the `-in provider=path` test seam. **What
+you must supply**: a fixture test in `main_test.go` covering the feed's real
+shape, a seed in `FuzzParsers`, and — if the source's ranges can overlap another
+provider's — a view on where its name belongs in `providerOrder`.
 
 ### `mmdb-build-countries`
 
