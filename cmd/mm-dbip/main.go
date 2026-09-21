@@ -194,6 +194,9 @@ func open(in, url string, timeout time.Duration) (io.Reader, func() error, error
 // fetch GETs url with dial/response-header deadlines but no whole-body timeout.
 func fetch(url string, timeout time.Duration) (io.ReadCloser, error) {
 	client := &http.Client{Transport: &http.Transport{
+		// A hand-built Transport has a nil Proxy, which silently ignores
+		// HTTPS_PROXY/HTTP_PROXY/NO_PROXY — unlike http.DefaultTransport.
+		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           (&net.Dialer{Timeout: timeout}).DialContext,
 		TLSHandshakeTimeout:   timeout,
 		ResponseHeaderTimeout: timeout,
