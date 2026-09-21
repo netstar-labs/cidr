@@ -58,16 +58,37 @@
 // service label. Without a precedence rule, whether a CloudFront range came out
 // "cdn" or "cloud" would depend on map iteration order.
 //
-// So: a service with an explicit mapping (CLOUDFRONT, GLOBALACCELERATOR, …)
-// outranks the catch-all, ties are broken by the fixed provider order, and any
+// So: within one operator's feed, a service with an explicit mapping (there are
+// exactly two — CLOUDFRONT and GLOBALACCELERATOR) outranks the catch-all. That
+// specificity rule stops at the provider boundary: it says nothing about two
+// different operators, so it never settles a disagreement between them. Any
 // prefix left claimed by two different functions is counted and reported on
 // stderr — never resolved silently. -conflict-log FILE writes every one as TSV.
 // Output is sorted, so two runs over the same input are byte-identical.
+//
+// # Nothing fails quietly
+//
+// A row a parser cannot use is counted per provider and reported as
+// malformed[...]; a provider that was attempted is always in the records[...]
+// tally, including at zero. And a source that yielded no usable rows at all is
+// a hard error, not an empty section of the table: none of these feeds is ever
+// legitimately empty, so zero rows means the fetch or the parse broke. Without
+// that guard a feed answering 200 with the wrong shape produced a clean exit
+// and a zero-byte file — which, under build/provider-function --generator,
+// truncates the published spec on a "successful" timer run.
+//
+// # -in and -provider
+//
+// -in takes provider=path pairs, not a bare path: the five feeds have four
+// different shapes, so the format cannot be inferred from a filename. Unlike
+// the other generators, -in does not auto-detect gzip. When both are given,
+// -in wins and -provider is ignored with a warning on stderr.
 package main
 
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -98,7 +119,7 @@ var providerOrder = []string{"aws", "cloudflare", "fastly", "google-cloud", "tor
 // publish more than one file (Cloudflare splits v4 and v6).
 type provider struct {
 	urls  []string
-	parse func(r io.Reader, emit func(netip.Prefix, entry)) error
+	parse func(r io.Reader, emit func(prefix string, e entry)) error
 }
 
 var providers = map[string]provider{
@@ -186,10 +207,21 @@ func main() {
 	}
 }
 
+// stats is only what cannot be derived at report time. Prefix and conflict
+// counts are not here: they are len(table) and len(conflicts), and a counter
+// that can disagree with the thing it counts is a bug waiting to be written.
 type stats struct {
-	prefixes  int            // prefixes written
-	conflicts int            // same prefix, differing function
-	perSource map[string]int // prefixes accepted per provider, before collapse
+	// perSource counts published records accepted per provider — records, not
+	// prefixes: AWS lists a prefix once per service it belongs to, and the
+	// table collapses those. Every attempted provider gets an entry, including
+	// a zero one, so a source that returned nothing usable is visible rather
+	// than absent from the tally.
+	perSource map[string]int
+	// malformed counts rows a parser could not use, per provider. Without it a
+	// feed that answers 200 with the wrong shape produces a short or empty
+	// table and a clean exit — see the family's own counters in
+	// rir-country/main.go.
+	malformed map[string]int
 }
 
 type conflict struct {
@@ -200,23 +232,30 @@ type conflict struct {
 
 func run(name, in, out, conflictLog string, timeout time.Duration) error {
 	table := map[netip.Prefix]entry{}
-	st := stats{perSource: map[string]int{}}
+	st := stats{perSource: map[string]int{}, malformed: map[string]int{}}
 	var conflicts []conflict
 
 	sources, err := openSources(name, in, timeout)
 	if err != nil {
 		return err
 	}
+	// Every source is opened before any is parsed, so a parse failure part-way
+	// through leaves the rest open. Closing them all on the way out is the only
+	// path that does not depend on where the loop stopped.
+	defer closeAll(sources)
+
 	for _, src := range sources {
-		err := providers[src.provider].parse(src.r, func(p netip.Prefix, e entry) {
-			e.provider = src.provider
-			st.perSource[src.provider]++
-			merge(table, p, e, &st, &conflicts)
-		})
-		src.close()
+		// An attempted provider is always in the tally, even at zero — the
+		// alternative is a feed that failed being absent from the report rather
+		// than visibly empty.
+		st.perSource[src.provider] += 0
+		err := providers[src.provider].parse(src.r, collect(src.provider, &st, table, &conflicts))
 		if err != nil {
 			return fmt.Errorf("%s: %w", src.name, err)
 		}
+	}
+	if err := checkSourcesProduced(sources, &st); err != nil {
+		return err
 	}
 
 	var w io.Writer = os.Stdout
@@ -229,7 +268,7 @@ func run(name, in, out, conflictLog string, timeout time.Duration) error {
 		w = f
 	}
 	bw := bufio.NewWriter(w)
-	if err := emit(table, bw, &st); err != nil {
+	if err := emit(table, bw); err != nil {
 		return err
 	}
 	if err := bw.Flush(); err != nil {
@@ -249,8 +288,46 @@ func run(name, in, out, conflictLog string, timeout time.Duration) error {
 	}
 	// Per-provider counts are published *records*, which exceed prefixes: AWS
 	// lists a prefix once per service it belongs to, and the table collapses those.
-	fmt.Fprintf(os.Stderr, "provider-function: records[%s] prefixes=%d conflicts=%d -> %s\n",
-		perSourceTally(st.perSource), st.prefixes, st.conflicts, dst)
+	fmt.Fprintf(os.Stderr, "provider-function: records[%s] malformed[%s] prefixes=%d conflicts=%d -> %s\n",
+		perSourceTally(st.perSource), perSourceTally(st.malformed), len(table), len(conflicts), dst)
+	return nil
+}
+
+// collect returns the per-record callback a parser feeds: it turns the raw
+// prefix text into a netip.Prefix, counts what it cannot parse, and merges the
+// rest. Parsing in one place rather than in each of the four parsers is what
+// gives the malformed counter a single home — without it, a feed answering 200
+// with the wrong shape yields a short table and a clean exit.
+func collect(provider string, st *stats, table map[netip.Prefix]entry, conflicts *[]conflict) func(string, entry) {
+	return func(raw string, e entry) {
+		p, err := cidr.ParsePrefix(raw)
+		if err != nil {
+			st.malformed[provider]++
+			return
+		}
+		e.provider = provider
+		st.perSource[provider]++
+		merge(table, p, e, conflicts)
+	}
+}
+
+// checkSourcesProduced refuses to write a table when a source that was actually
+// attempted yielded nothing usable. None of these five feeds is ever legitimately
+// empty, so zero rows means the fetch or the parse broke — and the failure is
+// otherwise silent: build/provider-function --generator would truncate the
+// published spec to empty on a "successful" timer run.
+func checkSourcesProduced(sources []source, st *stats) error {
+	seen := map[string]bool{}
+	for _, src := range sources {
+		if seen[src.provider] {
+			continue
+		}
+		seen[src.provider] = true
+		if st.perSource[src.provider] == 0 {
+			return fmt.Errorf("provider %s produced no usable rows (%d malformed) — refusing to write a table that would look like an empty internet",
+				src.provider, st.malformed[src.provider])
+		}
+	}
 	return nil
 }
 
@@ -258,22 +335,35 @@ func run(name, in, out, conflictLog string, timeout time.Duration) error {
 // decides first; a genuine disagreement between two equally specific sources is
 // recorded and broken by provider order so the output does not depend on the
 // order the files were read.
-func merge(table map[netip.Prefix]entry, p netip.Prefix, e entry, st *stats, conflicts *[]conflict) {
+func merge(table map[netip.Prefix]entry, p netip.Prefix, e entry, conflicts *[]conflict) {
 	prev, exists := table[p]
 	if !exists {
 		table[p] = e
 		return
 	}
-	if prev.function == e.function && prev.anycast == e.anycast && prev.provider == e.provider {
-		return // the same answer twice; nothing to resolve
+	if prev.function == e.function && prev.anycast == e.anycast {
+		// The same classification twice. Two providers agreeing is agreement,
+		// not a disagreement to report — "cdn vs cdn -> cdn" in a conflict log
+		// reads as a defect and inflates the number an operator watches for
+		// feed drift. The winner still has to be deterministic, so fall through
+		// to provider order without recording anything.
+		if providerRank(e.provider) < providerRank(prev.provider) {
+			table[p] = e
+		}
+		return
 	}
-	if prev.rank != e.rank {
+	// rank is specificity WITHIN one provider's own feed — AWS lists a prefix
+	// once per service and AMAZON is a catch-all superset of the specific ones.
+	// It says nothing about two different operators, so comparing it across
+	// providers would let an AWS service label silently override another
+	// operator's published claim (and drop that operator's anycast marker)
+	// without ever reaching the conflict path below.
+	if prev.provider == e.provider && prev.rank != e.rank {
 		if e.rank > prev.rank {
 			table[p] = e
 		}
 		return // specificity separated them: not a disagreement
 	}
-	st.conflicts++
 	winner := prev
 	if providerRank(e.provider) < providerRank(prev.provider) ||
 		(e.provider == prev.provider && e.function < prev.function) {
@@ -295,7 +385,7 @@ func providerRank(name string) int {
 // emit writes the table as a sorted cidr spec. Sorting is what makes two runs
 // over the same input byte-identical: map iteration order is not stable, and a
 // generator whose output churns cannot be diffed or checksummed.
-func emit(table map[netip.Prefix]entry, w io.Writer, st *stats) error {
+func emit(table map[netip.Prefix]entry, w io.Writer) error {
 	out := make([]netip.Prefix, 0, len(table))
 	for p := range table {
 		out = append(out, p)
@@ -310,7 +400,6 @@ func emit(table map[netip.Prefix]entry, w io.Writer, st *stats) error {
 		}
 		return a.Bits() < b.Bits()
 	})
-	st.prefixes = len(out)
 	for _, p := range out {
 		e := table[p]
 		line := p.String() + " " + e.function + " " + e.provider
@@ -328,7 +417,7 @@ func emit(table map[netip.Prefix]entry, w io.Writer, st *stats) error {
 
 // parseAWS reads ip-ranges.json. Every prefix is listed once per service it
 // belongs to; see the package doc for the precedence that resolves that.
-func parseAWS(r io.Reader, emit func(netip.Prefix, entry)) error {
+func parseAWS(r io.Reader, emit func(string, entry)) error {
 	var doc struct {
 		Prefixes []struct {
 			IPPrefix string `json:"ip_prefix"`
@@ -343,15 +432,11 @@ func parseAWS(r io.Reader, emit func(netip.Prefix, entry)) error {
 		return err
 	}
 	add := func(s, service string) {
-		p, err := cidr.ParsePrefix(s)
-		if err != nil {
-			return
-		}
 		e, ok := awsServices[service]
 		if !ok {
 			e = entry{function: funcCloud} // rank 0: AMAZON and every plain service
 		}
-		emit(p, e)
+		emit(s, e)
 	}
 	for _, p := range doc.Prefixes {
 		add(p.IPPrefix, p.Service)
@@ -364,7 +449,7 @@ func parseAWS(r io.Reader, emit func(netip.Prefix, entry)) error {
 
 // parseGoogleCloud reads cloud.json, whose entries carry exactly one of
 // ipv4Prefix/ipv6Prefix and a single service value ("Google Cloud").
-func parseGoogleCloud(r io.Reader, emit func(netip.Prefix, entry)) error {
+func parseGoogleCloud(r io.Reader, emit func(string, entry)) error {
 	var doc struct {
 		Prefixes []struct {
 			IPv4Prefix string `json:"ipv4Prefix"`
@@ -379,9 +464,7 @@ func parseGoogleCloud(r io.Reader, emit func(netip.Prefix, entry)) error {
 			if s == "" {
 				continue
 			}
-			if p, err := cidr.ParsePrefix(s); err == nil {
-				emit(p, entry{function: funcCloud})
-			}
+			emit(s, entry{function: funcCloud})
 		}
 	}
 	return nil
@@ -391,24 +474,36 @@ func parseGoogleCloud(r io.Reader, emit func(netip.Prefix, entry)) error {
 // both Cloudflare (CIDR prefixes) and the Tor Project (bare addresses, promoted
 // to host routes by ParsePrefix) publish. The whole file carries one
 // classification, so it is supplied rather than derived per line.
-func parseLineList(e entry) func(io.Reader, func(netip.Prefix, entry)) error {
-	return func(r io.Reader, emit func(netip.Prefix, entry)) error {
+func parseLineList(e entry) func(io.Reader, func(string, entry)) error {
+	return func(r io.Reader, emit func(string, entry)) error {
 		sc := bufio.NewScanner(r)
+		// A line longer than the 64KB default would otherwise abort the whole
+		// run with "token too long", discarding every provider that parsed
+		// cleanly — a minified error page is one line. Same bound, and the same
+		// reason, as rir-country.
+		sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 		for sc.Scan() {
 			line := strings.TrimSpace(sc.Text())
 			if line == "" || strings.HasPrefix(line, "#") {
 				continue
 			}
-			if p, err := cidr.ParsePrefix(line); err == nil {
-				emit(p, e)
-			}
+			emit(line, e)
 		}
-		return sc.Err()
+		if err := sc.Err(); err != nil {
+			if errors.Is(err, bufio.ErrTooLong) {
+				// Count it and keep the rows that did parse, rather than
+				// discarding four good providers over one absurd line.
+				emit("", e)
+				return nil
+			}
+			return err
+		}
+		return nil
 	}
 }
 
 // parseFastly reads public-ip-list. Fastly documents its edge as anycast.
-func parseFastly(r io.Reader, emit func(netip.Prefix, entry)) error {
+func parseFastly(r io.Reader, emit func(string, entry)) error {
 	var doc struct {
 		Addresses     []string `json:"addresses"`
 		IPv6Addresses []string `json:"ipv6_addresses"`
@@ -418,9 +513,7 @@ func parseFastly(r io.Reader, emit func(netip.Prefix, entry)) error {
 	}
 	for _, list := range [][]string{doc.Addresses, doc.IPv6Addresses} {
 		for _, s := range list {
-			if p, err := cidr.ParsePrefix(s); err == nil {
-				emit(p, entry{function: funcCDN, anycast: true})
-			}
+			emit(s, entry{function: funcCDN, anycast: true})
 		}
 	}
 	return nil
@@ -431,8 +524,7 @@ func parseFastly(r io.Reader, emit func(netip.Prefix, entry)) error {
 type source struct {
 	name     string // for error messages: the url or file path
 	provider string
-	r        io.Reader
-	close    func()
+	r        io.ReadCloser
 }
 
 func openSources(name, in string, timeout time.Duration) ([]source, error) {
@@ -459,7 +551,7 @@ func openSources(name, in string, timeout time.Duration) ([]source, error) {
 				closeAll(out)
 				return nil, err
 			}
-			out = append(out, source{name: path, provider: prov, r: f, close: func() { f.Close() }})
+			out = append(out, source{name: path, provider: prov, r: f})
 		}
 		if len(out) == 0 {
 			return nil, fmt.Errorf("-in named no readable files")
@@ -478,7 +570,7 @@ func openSources(name, in string, timeout time.Duration) ([]source, error) {
 				closeAll(out)
 				return nil, err
 			}
-			out = append(out, source{name: url, provider: prov, r: body, close: func() { body.Close() }})
+			out = append(out, source{name: url, provider: prov, r: body})
 		}
 	}
 	return out, nil
@@ -486,12 +578,16 @@ func openSources(name, in string, timeout time.Duration) ([]source, error) {
 
 func closeAll(s []source) {
 	for _, x := range s {
-		x.close()
+		x.r.Close()
 	}
 }
 
 func fetch(url string, timeout time.Duration) (io.ReadCloser, error) {
 	client := &http.Client{Transport: &http.Transport{
+		// A hand-built Transport has a nil Proxy, which silently ignores
+		// HTTPS_PROXY/HTTP_PROXY/NO_PROXY — unlike http.DefaultTransport. The
+		// other four generators share the omission (audit B1, 2026-09-21).
+		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           (&net.Dialer{Timeout: timeout}).DialContext,
 		TLSHandshakeTimeout:   timeout,
 		ResponseHeaderTimeout: timeout,
