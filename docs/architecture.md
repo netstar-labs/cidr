@@ -34,8 +34,8 @@ The result is the smallest possible array of intervals. `Contains` binary-
 searches for the last interval whose `lo ≤ addr` and checks `addr ≤ hi`:
 
 ```
-i := first interval with lo > addr      // sort.Search
-covered := i > 0 && addr <= ranges[i-1].hi
+i := first interval with lo > addr      // a hand-rolled sort.Search over the integer array
+covered := i > 0 && addr <= hi[i-1]
 ```
 
 ## Table[V] — value lookup (longest-prefix match)
@@ -122,12 +122,19 @@ worth the complexity.
 
 ## Benchmarks
 
-On an Apple M2 Pro (Go 1.25), both queries are a single binary search with no
-allocation:
+Both queries are a single binary search with no allocation. Measured with
+`go test -run xxx -bench . -benchmem -count 6 .` on an Apple M2 Pro (10 cores),
+Go 1.27.3 darwin/arm64; the six runs agree to within 4%. Each benchmark builds a
+set of random `/24`s (IPv4) or `/48`s (IPv6) and cycles through 4,096 random
+query addresses (almost all misses at these densities). Median ns/op, min in
+parentheses, all `0 B/op 0 allocs/op`:
 
 ```
-BenchmarkSetContains-10    ~88 ns/op    0 B/op    0 allocs/op
-BenchmarkTableLookup-10    ~88 ns/op    0 B/op    0 allocs/op
+                               Set.Contains   Table.Lookup
+4,000 IPv4 /24s                 40 (39.7)      44 (43.6)     SetContains / TableLookup
+4,000 IPv6 /48s                 49 (48.6)      54 (53.0)     …V6
+500,000 IPv4 /24s               81 (80.0)      90 (89.3)     …500k
+500,000 IPv6 /48s              100 (98.9)     108 (107.5)    …V6500k
 ```
 
 The design-time comparison against a path-compressed trie on the same data (a
@@ -137,8 +144,10 @@ found the IPv4 range array about
 the gap widening as the set grew: the trie pointer-chases a node graph that falls
 out of cache, while the array stays contiguous and its cost grows only as
 `log N`. That comparison predates the integer layout: the frozen structures now
-store IPv4 as `uint32` and IPv6 as two `uint64` words, which roughly halved query
-time again over the `netip.Addr` arrays measured then.
+store IPv4 as `uint32` and IPv6 as two `uint64` words. On the same machine that
+roughly halved IPv4 query time (4,000 prefixes: 87→40 ns for `Set`, 88→44 ns for
+`Table`) and cut IPv6 by about 40% (84→49 and 88→54 ns), as re-measured against
+the `netip.Addr`-array code from just before the change.
 
 ## The trie trade-off — when a trie wins
 

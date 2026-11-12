@@ -107,8 +107,13 @@ not a valid ASN it starts the org instead (and the ASN is 0), so the grammar is
 line is data: `203.0.113.7 64500 Example Org # note` yields the org
 `Example Org # note`. Put each annotation on its own `#` line.
 
-Lines whose first field is not a valid prefix are skipped (so an occasional junk
-line in a large feed does not fail the load). The only error is a failed read,
+Fields are split on whitespace only, so a comma-separated line
+(`10.0.0.0/8,64500,Example`) has an invalid first field and is skipped like any
+other junk (`ipfold` and `ipunfold`, by contrast, split their first field on
+whitespace *or* commas). Lines whose first field is not a valid prefix are
+skipped (so an occasional junk line in a large feed does not fail the load — but
+see [Concurrency and refresh](#concurrency-and-refresh): a feed that is *all*
+junk loads as an empty set, with no error). The only error is a failed read,
 which includes `bufio.ErrTooLong` for a line of 1 MiB or more (a trailing `\r` counts). On error:
 `ParseSpec` returns the entries parsed before the failure plus the error;
 `LoadSet` and `LoadASN` return nil plus the error; `LoadFunc` returns a non-nil
@@ -136,8 +141,12 @@ envelope (as published at `refs.netstar.dev` — `parked.ip.json`, blocklists, �
 ```
 
 Each `list` entry uses the same `<cidr> [ASN] [org]` grammar, so both a bare
-CIDR list and an IP-to-ASN list are valid bodies. Load it with the JSON analogues
-of `LoadSet`/`LoadASN`, or decode the envelope for its metadata:
+CIDR list and an IP-to-ASN list are valid bodies. The envelope is read strictly:
+a missing or renamed `list` key is an error, and so is anything but whitespace
+after the JSON value (trailing garbage, a second envelope), so a mangled feed
+cannot pass for an empty set. `"list": []` and `"list": null` are valid and
+empty (a Go producer marshals an empty nil slice as `null`). Load it with the JSON
+analogues of `LoadSet`/`LoadASN`, or decode the envelope for its metadata:
 
 ```go
 set, table, err := cidr.LoadRefsASN(r)   // Set + Table[Info], like LoadASN
@@ -212,7 +221,9 @@ tb.AddRange(lo, hi, v)     // *TableBuilder[V] — value v across the range
 For a `Table`, the range is decomposed into its minimal set of CIDR prefixes
 (each carrying `v`) so longest-prefix match stays well defined — a more-specific
 range's pieces have longer masks and win. Reversed or mixed-family ranges are
-ignored.
+ignored, and a zone on either bound is dropped (queries ignore zones too, so a
+zoned bound would otherwise sort after the plain address and the range's first
+address would never match).
 
 One caveat: when a nested range and its covering range decompose to an
 *identical* piece, longest-prefix match cannot separate them and `Add`'s rule
@@ -247,11 +258,13 @@ provides *CIDR (or range) + value*:
 
 ### Fetch/convert tools
 
-Four tools under [`cmd/`](../cmd) fetch a source's table and write the cidr
+Five tools under [`cmd/`](../cmd) fetch a source's table and write the cidr
 spec directly: range-based sources are decomposed to CIDRs (via
 `RangePrefixes`), CIDR-native sources pass through. Each also reads a local file
-with `-in` (gzip auto-detected) and writes to stdout or `-o FILE`, with a tally
-on stderr.
+with `-in` (gzip auto-detected, except `provider-function`, below) and writes to
+stdout or `-o FILE`, with a tally on stderr. `-o FILE` is published atomically
+and a run that cannot publish a complete file exits 1 — see
+[Generator failure behaviour](#generator-failure-behaviour).
 
 **[`cmd/iptoasn`](../cmd/iptoasn)** — iptoasn.com IP-to-ASN (free, no account);
 range-based. Three output modes:
@@ -269,6 +282,11 @@ iptoasn -in ip2asn-combined.tsv.gz               # convert a local (gzipped) TSV
 Flags: `-output` (`asn`/`country`), `-family`, `-url`, `-in`, `-o`, `-unrouted`
 (keep AS0 rows), `-country` (prepend country to org in asn mode), `-timeout`. AS0 "Not
 routed" rows are dropped by default. In country mode, rows with country `None` are also skipped.
+
+**`-country` is not a fixed-column format.** A row whose source country is `None`
+gets no country field — `<cidr> <ASN> <org>` rather than `<cidr> <ASN> <CC>
+<org>` — so a consumer must not read the third field positionally as a country
+code; it may be the first word of the organisation.
 
 **[`cmd/mm-geolite2-asn`](../cmd/mm-geolite2-asn)** — MaxMind GeoLite2 ASN (needs a
 free license key); CIDR-native → `<cidr> <ASN> <org>` (`LoadASN`):
@@ -369,7 +387,7 @@ every one as TSV. Output is sorted and byte-identical across runs.
 
 Nothing fails quietly: unusable rows are counted per provider as
 `malformed[...]`, an attempted provider appears in `records[...]` even at zero,
-and a source that produced **no** usable rows is a hard error with no file
+and a feed (one URL or `-in` entry) that produced **no** usable rows is a hard error with no file
 written — none of these feeds is legitimately empty, so zero rows means the
 fetch or the parse broke, and writing anyway would truncate the published spec
 on a "successful" timer run.
@@ -396,6 +414,12 @@ value (the operator's country).
 Input is `<cidr> <country_code>` — obtainable from `iptoasn -output country`,
 `mm-dbip -db country`, or any spec with 2-letter ISO codes in the second field.
 
+**The schema follows `-db-type`**: a type containing `Country` writes the country
+schema, anything else the ASN schema. A country (or `provider-function`) spec
+given to the ASN schema is not an error — every record comes out with ASN 0 and
+the second field as its organisation — so `mmdb-write` warns on stderr when
+**every** inserted record has ASN 0; give such a spec `-db-type GeoLite2-Country`.
+
 ```sh
 # ASN MMDB — pipe any ASN generator
 iptoasn -family combined | mmdb-write -o iptoasn-asn.mmdb
@@ -410,6 +434,34 @@ mm-dbip -db country | mmdb-write -db-type GeoLite2-Country -o dbip-country.mmdb
 mmdb-write -in my-asn.cidr -o asn.mmdb
 mmdb-write -in my-country.cidr -db-type GeoLite2-Country -o country.mmdb
 ```
+
+**In a script, stage the steps instead of piping them.** A plain shell pipe
+without `pipefail` reports only the *last* command's status, and a generator's
+stdout is not atomic: if the download fails part-way, `mmdb-write` compiles the
+rows that already arrived and the pipeline exits 0 with a truncated database.
+(`set -o pipefail` makes the status honest, but the truncated file is still
+written.) Run the generator to a file first, and compile only if it succeeded:
+
+```sh
+iptoasn -o spec && mmdb-write -in spec -o iptoasn-asn.mmdb
+iptoasn -output country -o spec && mmdb-write -in spec -db-type GeoLite2-Country -o iptoasn-country.mmdb
+```
+
+**The most specific prefix wins, whatever the input order.** `mmdb-write` inserts
+entries shortest prefix first (a stable sort, so of two identical prefixes the
+last in the spec wins), so the database answers as `cidr` would from the same
+spec — `10.1.0.0/16` before or after `10.0.0.0/8` makes no difference. The
+residual divergences are `mmdbwriter`'s: IPv6 prefixes inside or covering `::/96`
+(which holds the IPv4 subtree), and the networks that alias it (`2001::/32`,
+`2002::/16`, `::ffff:0:0/96`), are skipped or write through into the IPv4 side.
+
+stderr carries a tally,
+`inserted=N skipped: unparseable=… pseudo-code=… unknown-country=… unknown-continent=… aliased=…`.
+If nothing was inserted — an empty spec, or every entry skipped (an ASN spec given
+`-db-type GeoLite2-Country` skips all of them as unknown countries) — it exits 1
+and writes no file. `-o FILE` is published atomically (temp file beside the
+target, fsync, rename; a symlinked target is followed, an existing mode kept, new
+files 0644), so a failure leaves the previous database untouched.
 
 Flags: `-in`, `-o`, `-db-type` (default `GeoLite2-ASN`), `-description`
 (default: `IPtoASN` for `GeoLite2-ASN`, otherwise the db-type), `-build-epoch`,
@@ -427,6 +479,45 @@ Refresh it from Wikidata like so:
 go run ./cmd/mmdb-build-countries
 ```
 
+### Generator failure behaviour
+
+Applies to `iptoasn`, `mm-dbip`, `mm-geolite2-asn`, `rir-country` and
+`provider-function`; each succeeds only when it has published a complete file,
+not merely when it exited. **A monitor must use the exit code**: a failure exits
+non-zero — `1` for a failed run, `2` for most flag-parsing errors (a few validated
+settings, such as `iptoasn -family`, also exit `1`) — and no longer prints a
+`rows=0` tally with exit 0.
+
+- **Atomic output.** `-o FILE` is written to a hidden `.<name>.tmp-*` in the
+  target's directory, fsynced, and renamed over the target only once every check
+  has passed: a reader sees the previous complete file or the new one, never a
+  prefix. A symlinked target is followed (the link survives), a special file such
+  as `/dev/null` is written through, an existing mode is kept (new files 0644). On
+  any failure the previous file is untouched. Because it is a rename, a hard link
+  to the output stops seeing updates and a custom owner is not preserved; a run
+  killed mid-download leaves a hidden temp file that a `*.cidr` glob ignores.
+  Stdout is a stream — rows already flushed are gone — so atomicity is a property
+  of `-o FILE`.
+- **Zero usable rows exits 1 and publishes nothing** (an HTML error page or empty
+  body used to produce a 0-byte file and exit 0), as does a truncated stream, a
+  dropped connection or corrupt gzip.
+- **`-timeout` is also the idle (stall) deadline.** Beyond bounding the dial, TLS
+  handshake and response headers, a download that sends no byte for `-timeout`
+  fails; a large, slow download that keeps sending completes. `-timeout 0` means
+  no limit. (The systemd units add a wall-clock `TimeoutStartSec`, below.)
+- **`rir-country`** prints a stderr line per registry
+  (`<registry> rows=N malformed=N header=bool`) before its summary and exits 1 if
+  a registry that was read contributed no records.
+- **`provider-function`** counts rows per feed (one URL, or one `-in` entry) and
+  fails if *any* feed yielded none; a missing or `null` top-level array in a JSON
+  feed (AWS `prefixes`/`ipv6_prefixes`, Fastly `addresses`/`ipv6_addresses`,
+  Google `prefixes`) is a hard shape error naming the key; a line of 1 MiB or more
+  in a line-list feed is an error.
+- **`-conflict-log FILE`** is written atomically, but after the spec is
+  published: if it fails, the run exits 1 with the new spec already in place.
+
+Details per tool are in the [cmd README](../cmd/README.md#failure-behaviour).
+
 ### Scheduled generation (systemd)
 
 Each generator has a build script under [`build/`](../build) that cross-compiles
@@ -443,6 +534,22 @@ build/provider-function --generator user@host              # daily    -> provide
 build/mm-geolite2-asn --generator --key YOUR_KEY user@host # weekly   -> geolite2-asn.cidr
 build/mmdb-iptoasn-write --generator user@host            # daily -> iptoasn-asn.mmdb + iptoasn-country.mmdb
 ```
+
+Every generator unit sets `TimeoutStartSec` (a `Type=oneshot` unit has no start
+timeout by default, so a hung run would block the timer forever): 30 minutes for
+`iptoasn`, `rir-country` and `provider-function`, 1 hour for `mm-dbip`,
+`mm-geolite2-asn` and the MMDB compile (for the staged MMDB unit, whether the
+bound is per step or for the whole sequence has not been verified on Linux). A
+failed run (non-zero exit, or the timeout) never leaves a half-written published
+file; each file is replaced only by its own final rename. The `mmdb-iptoasn-write` unit is
+**staged, not piped**: one `ExecStart=` per step (fetch the spec, compile to
+`….new`, `mv` over the live file), which systemd runs in order and stops at the
+first failure, so a failed download never reaches `mmdb-write` and the live
+database is only ever replaced by its final atomic `mv` — the ASN database is
+moved before the country half runs, so a failure there can leave a new ASN
+database beside the previous country one; `ExecStopPost=` removes the temp files
+on every path. The live `.mmdb` is a fresh file on each run
+(owner and mode as a new file, not preserved from the previous one).
 
 `--cli` (the default) builds just the binary — nothing is scheduled. With no
 host the install package is left under `build/install/` to copy and run
@@ -462,7 +569,9 @@ OUTFILE=iptoasn-asn-cc.cidr GENARGS="-family combined -country" \
 
 Note the default `GENARGS` produces `<cidr> <ASN> <org>` with **no** country
 column, so a loader that reads field 3 as a country code must be pointed at a
-spec built with `-country` — the two differ only in a column, not a filename.
+spec built with `-country` — the two differ only in a column, not a filename. Even
+then the column is optional: a row whose source country is `None` has no country
+field, so read field 3 only after checking that it is one.
 
 For `mm-geolite2-asn`, `--generator` **requires `--key`** (MaxMind downloads are
 authenticated) and refuses to build without one. The key is written to a
@@ -544,11 +653,36 @@ swap the pointer atomically:
 
 ```go
 var current atomic.Pointer[cidr.Set]
-// startup / on each scheduled reload:
-current.Store(rebuildFromFeed())
+
+// reload builds a Set from the feed and swaps it in only if it looks sane.
+func reload(r io.Reader) error {
+	set, err := cidr.LoadSet(r)
+	if err != nil {
+		return err // keep serving the previous Set
+	}
+	if set.Len() == 0 { // or a floor suited to the feed, e.g. under half the old Len
+		return errors.New("feed loaded empty; keeping the previous set")
+	}
+	current.Store(set)
+	return nil
+}
+
+// startup: a failure is fatal, since current is nil until a Set is stored.
+if err := reload(feed); err != nil { log.Fatal(err) }
+// each scheduled reload: log the error and keep serving the old Set.
+if err := reload(feed); err != nil { log.Print(err) }
 // hot path:
 if current.Load().Contains(ip) { ... }
 ```
+
+**Guard the swap.** The loaders skip lines they cannot parse without reporting
+them, so a feed that is really an HTML error page, an empty body or the wrong
+format *loads as an empty set with a nil error* — and swapping that in turns every
+lookup into a miss. Check `Len()` (or a minimum that suits the feed, or a
+fraction of the previous `Len`) before `Store`. `Table` has no `Len`: after
+`LoadASN`/`LoadRefsASN` check the returned `Set`, and with `LoadFunc` count the
+lines your callback accepts. (The generators in [`cmd/`](../cmd) apply the same
+rule to their own output: zero usable rows is an error and publishes nothing.)
 
 Builders are **not** concurrent-safe; do all `Add` calls from one goroutine
 before `Freeze`.
@@ -562,7 +696,7 @@ before `Freeze`.
 | `NewBuilder() *Builder` | start a membership set |
 | `(*Builder) Add(netip.Prefix)` | add a prefix |
 | `(*Builder) AddPrefix(string) error` | parse and add a CIDR or bare address |
-| `(*Builder) AddRange(lo, hi netip.Addr)` | add an inclusive address range |
+| `(*Builder) AddRange(lo, hi netip.Addr)` | add an inclusive address range (zones on the bounds are ignored) |
 | `(*Builder) Freeze() *Set` | compile to an immutable `Set` |
 | `(*Set) Contains(netip.Addr) bool` | membership test |
 | `(*Set) Len() int` | number of merged intervals |
@@ -591,7 +725,7 @@ before `Freeze`.
 | `LoadASN(io.Reader) (*Set, *Table[Info], error)` | spec → `Set` + `Table[Info]` |
 | `BuildASN([]SpecEntry) (*Set, *Table[Info])` | already-parsed entries → `Set` + `Table[Info]` (the step `LoadASN` wraps) |
 | `LoadFunc[V](io.Reader, parse) (*Table[V], error)` | any custom `<cidr> data...` feed → `Table[V]` |
-| `ParseRefs(io.Reader) (*Refs, error)` | decode a `{name,version,list}` refs JSON envelope |
+| `ParseRefs(io.Reader) (*Refs, error)` | decode a `{name,version,list}` refs JSON envelope; a missing/renamed `list` or trailing data is an error (`[]` and `null` are empty) |
 | `(*Refs) Entries() []SpecEntry` | parse the refs list into spec entries |
 | `LoadRefsSet(io.Reader) (*Set, error)` | refs JSON → membership `Set` |
 | `LoadRefsASN(io.Reader) (*Set, *Table[Info], error)` | refs JSON → `Set` + `Table[Info]` |
@@ -613,7 +747,27 @@ produces). Each lookup decodes a `map[string]any` for the record, so it is
 | `(*MMDB) Metadata() map[string]any` | the decoded metadata (`node_count`, `record_size`, `ip_version`, `database_type`, …) |
 | `(*MMDB) Close() error` | a no-op kept for API symmetry; safe to call concurrently with lookups |
 
-An `*MMDB` is safe for concurrent lookups.
+An `*MMDB` is safe for concurrent lookups. The file is treated as untrusted
+input:
+
+- **Format checks at open.** `binary_format_major_version` must be 2 and
+  `ip_version` 4 or 6 (a missing value is as invalid as a wrong one); anything
+  else is an error rather than being read as IPv6.
+- **Value widths are enforced.** A `uint16` is at most 2 bytes, `uint32` 4,
+  `uint64` 8, `int32` 4 and `uint128` 16; a `double` is exactly 8 and a `float`
+  exactly 4; a `bool` has size 0 or 1.
+- **Each `Lookup` has a decode budget** (and so does the metadata decode at open):
+  the section's length times 4 work units, held between 1 MiB and 32 MiB of units
+  (`minDecodeCost`/`maxDecodeCost` in `mmdb.go`). A container is charged for its
+  full declared size before anything is allocated, so a hostile record fails with
+  `decode budget exceeded` instead of amplifying. One unit buys at most about
+  1.3 bytes of heap, so a single `Lookup` allocates at most ~42 MB at the ceiling
+  (the derivation is in the comment above `minDecodeCost` in `mmdb.go`); that is
+  per call, so concurrent lookups multiply it by the number in flight. Real
+  records cost a tiny fraction of it.
+- **`Metadata()` returns the database's own map**, not a copy: it is shared by
+  every caller and by concurrent lookups, so treat it (and the maps and slices
+  inside it) as read-only; copy it before changing anything.
 
 ## Command-line tool
 
@@ -633,9 +787,14 @@ cidr -spec block.txt -match < ips.txt       # print only listed addresses (exit 
 |---|---|
 | `-spec FILE` | the spec to load (required) |
 | `-brief` | terse aligned lines instead of NDJSON |
-| `-match` | filter mode: print only addresses in the set; exit 1 if none matched |
+| `-match` | filter mode: print only addresses in the set; exit 1 if none matched (see below) |
 | `-quiet` | suppress the run tally on stderr |
 | `-version` | print the stamped version and exit |
+
+Exit status follows grep: **0** success (with `-match`, at least one address
+matched), **1** no match (`-match` only), **2** any error — bad usage, an
+unreadable spec or input, or a failed write to stdout. An invalid address in the
+input is skipped (with a note on stderr, except under `-match`), not an error.
 
 A tally (`spec=… prefixes=… intervals=… queried=… member=…`) is written to
 stderr unless `-quiet`. Build a version-stamped `linux/amd64` static binary with

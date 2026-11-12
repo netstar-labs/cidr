@@ -52,7 +52,9 @@ matters:
 
 The trie figures come from a design-time comparison against a path-compressed trie
 that is not part of this repository and is not reproduced here; the `Set`/`Table`
-lookup timings (~88 ns, zero allocations) are reproducible with `go test -bench .`.
+lookup timings (IPv4: ~40–45 ns at 4,000 prefixes, ~80–90 ns at 500,000; IPv6:
+~50 and ~100–110 ns; zero allocations; Apple M2 Pro) are reproducible with
+`go test -bench .` and tabulated in [architecture.md](architecture.md#benchmarks).
 
 The trade-off it accepts — no cheap incremental mutation under live queries — is
 exactly the capability a static, wholesale-rebuilt set does not use.
