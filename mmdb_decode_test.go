@@ -307,4 +307,7 @@ func TestDecodeMMDBBudget(t *testing.T) {
 	if got := newBudget(1 << 20).left; got != 4<<20 {
 		t.Errorf("newBudget(1<<20) = %d, want 4*len", got)
 	}
+	if got := newBudget(1 << 30).left; got != 1<<25 {
+		t.Errorf("newBudget(1<<30) = %d, want the 1<<25 ceiling", got)
+	}
 }

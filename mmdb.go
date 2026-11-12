@@ -210,6 +210,7 @@ const (
 	elemCost      = 16      // extra units per pre-sized array slot
 	mapEntryCost  = 48      // extra units per pre-sized map entry
 	minDecodeCost = 1 << 20 // floor of a budget, so tiny sections still decode
+	maxDecodeCost = 1 << 25 // ceiling of a budget: admits the largest single value the format allows
 	maxPresize    = 4096    // cap on the entries a container pre-allocates
 )
 
@@ -218,9 +219,14 @@ var errBudget = errors.New("cidr: mmdb: decode budget exceeded")
 // budget is the remaining work/output allowance of one top-level decode.
 type budget struct{ left int }
 
-// newBudget sizes a budget from the section being decoded: max(1<<20, 4*sectionLen).
+// newBudget sizes a budget from the section being decoded: 4*sectionLen, held between
+// a floor (1<<20, so tiny sections with internal repetition still decode) and a ceiling
+// (1<<25, so a huge hostile file cannot buy a proportionally huge decode per Lookup).
+// The ceiling still admits the largest single value the format can express (a string
+// of 65821+2^24-1 bytes), and leaves wide headroom: the costliest record in a real
+// 1.4 GB DB-IP database used under 10,000 units.
 func newBudget(sectionLen int) *budget {
-	return &budget{left: max(minDecodeCost, 4*sectionLen)}
+	return &budget{left: min(maxDecodeCost, max(minDecodeCost, 4*sectionLen))}
 }
 
 // charge spends n units, failing once the allowance is exhausted.

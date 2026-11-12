@@ -16,7 +16,7 @@ func TestMMDBMalformedNoPanic(t *testing.T) {
 		name string
 		in   []byte
 	}{
-		{"self-pointer", []byte{0x20, 0x00}},                      // pointer → itself (depth guard)
+		{"self-pointer", []byte{0x20, 0x00}},                      // pointer → itself (rejected as a pointer to a pointer)
 		{"amplified-array", []byte{0x1f, 0x04, 0xff, 0xff, 0xff}}, // array claims ~16M elements
 		{"amplified-map", []byte{0xff, 0xff, 0xff, 0xff}},         // map claims ~16M entries
 		{"deep-nesting", bytes.Repeat([]byte{0x01, 0x04}, 600)},   // 600 nested arrays (depth guard)
