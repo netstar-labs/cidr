@@ -25,8 +25,11 @@ func (b *Builder) AddRange(lo, hi netip.Addr) {
 
 // AddRange attaches value v to the inclusive interval [lo, hi]. The range is
 // decomposed into its minimal set of CIDR prefixes, each carrying v, so
-// longest-prefix match stays well defined: a more-specific range's pieces have
-// longer masks and win over a covering one. An invalid range is ignored.
+// longest-prefix match stays well defined: where a nested range and its covering
+// range yield different pieces, the nested range's longer masks win. Where they
+// yield an identical piece (10.0.0.0-10.0.0.127 inside 10.0.0.0-10.0.0.191 both
+// produce 10.0.0.0/25) Add's rule decides: the value added last wins. Add covering
+// ranges before the ranges nested in them. An invalid range is ignored.
 func (b *TableBuilder[V]) AddRange(lo, hi netip.Addr, v V) {
 	for _, p := range RangePrefixes(lo, hi) {
 		b.Add(p, v)

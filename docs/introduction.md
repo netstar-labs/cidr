@@ -31,8 +31,9 @@ longest-prefix-match winner for every disjoint segment of the line. What the
 build hands back is flat: the router's most-specific-wins rule, resolved into the
 very same sorted array that membership uses, so a value lookup costs exactly what
 a yes/no test costs — one binary search, zero allocation — over a structure
-roughly `8–60×` smaller than the equivalent trie (see
-[architecture](architecture.md) for the measurements). The value type `V` is
+roughly `8–60×` smaller than the equivalent trie in a design-time comparison
+(against a path-compressed trie that is not part of this repository and not
+reproduced here; see [architecture](architecture.md) for the trade-off). The value type `V` is
 yours: a struct, a string, or a compact `uint64` packed by `EncodeASN`.
 
 What you keep, plainly, is a build-once contract. The set is immutable after

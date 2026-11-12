@@ -1,6 +1,9 @@
 package cidr
 
 import (
+	"bufio"
+	"errors"
+	"io"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -10,7 +13,8 @@ import (
 const sampleSpec = `
 # an IP-to-ASN spec with comments and blank lines
 
-10.0.0.0/8            # bare CIDR, no ASN
+# a bare CIDR, no ASN
+10.0.0.0/8
 1.1.1.0/24 13335 Cloudflare, Inc.
 8.8.8.0/24 AS15169 Google LLC
 1.1.1.128/25 64500 More Specific Sub
@@ -168,19 +172,23 @@ func TestLoadSet(t *testing.T) {
 }
 
 // TestLoadFuncClassification loads a "<cidr> <6-digit code> [label...]" feed
-// through LoadFunc into a Table of a custom struct value — the worked example
-// from the user guide.
+// through LoadFunc into a Table of a custom struct value. guideFeed is the exact
+// text of the worked example in docs/userguide.md (annotations sit on their own
+// '#' line, because a trailing '#' would become part of the label); the two
+// malformed lines after it exercise the parse callback's rejections.
 func TestLoadFuncClassification(t *testing.T) {
 	type Class struct {
 		Code  int
 		Label string
 	}
-	const feed = `
-# network classification: <cidr> <6-digit code> [label...]
+	const guideFeed = `# <cidr> <6-digit code> [label...]
 1.1.1.0/24     518210 Data Processing & Hosting
+# nested, more specific
 1.1.1.128/25   541512 Computer Systems Design
 10.0.0.0/8     999999 Private Use
-BOGUS          000001 not a prefix
+2001:db8::/32  100002 Documentation
+`
+	const feed = guideFeed + `BOGUS          000001 not a prefix
 1.2.3.0/24     42     too short
 `
 	table, err := LoadFunc(strings.NewReader(feed), func(f []string) (netip.Prefix, Class, bool) {
@@ -201,8 +209,11 @@ BOGUS          000001 not a prefix
 		t.Fatal(err)
 	}
 
-	if c, ok := table.Lookup(mustAddr("1.1.1.200")); !ok || c.Code != 541512 { // nested /25 wins
-		t.Errorf("1.1.1.200 = %+v (ok=%v), want code 541512", c, ok)
+	if c, ok := table.Lookup(mustAddr("1.1.1.200")); !ok || c != (Class{541512, "Computer Systems Design"}) { // nested /25 wins
+		t.Errorf("1.1.1.200 = %+v (ok=%v), want {541512 Computer Systems Design}", c, ok)
+	}
+	if c, ok := table.Lookup(mustAddr("2001:db8::1")); !ok || c != (Class{100002, "Documentation"}) {
+		t.Errorf("2001:db8::1 = %+v (ok=%v)", c, ok)
 	}
 	if c, ok := table.Lookup(mustAddr("1.1.1.10")); !ok || c.Label != "Data Processing & Hosting" {
 		t.Errorf("1.1.1.10 = %+v (ok=%v)", c, ok)
@@ -213,5 +224,67 @@ BOGUS          000001 not a prefix
 	// the malformed lines (bad prefix, short code) were skipped
 	if _, ok := table.Lookup(mustAddr("1.2.3.4")); ok {
 		t.Error("1.2.3.4 came from a rejected line and should miss")
+	}
+}
+
+// TestSpecHashIsData pins the comment rule: only a whole line beginning with '#'
+// is a comment; a '#' inside a line stays in its field.
+func TestSpecHashIsData(t *testing.T) {
+	const feed = "# whole-line comment\n  # indented whole-line comment\n203.0.113.7 64500 Example Org # note\n"
+	entries, err := ParseSpec(strings.NewReader(feed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].ASN != 64500 || entries[0].Org != "Example Org # note" {
+		t.Fatalf("entries = %+v, want one entry with Org %q", entries, "Example Org # note")
+	}
+
+	table, err := LoadFunc(strings.NewReader("10.0.0.0/8 x # y\n"), func(f []string) (netip.Prefix, string, bool) {
+		p, err := ParsePrefix(f[0])
+		return p, strings.Join(f[1:], " "), err == nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := table.Lookup(mustAddr("10.1.2.3")); v != "x # y" {
+		t.Errorf("LoadFunc value = %q, want %q", v, "x # y")
+	}
+}
+
+// TestLoadErrTooLong pins what each loader returns when a line is 1 MiB or
+// longer (bufio.ErrTooLong): ParseSpec the entries read so far, LoadSet/LoadASN
+// nil, LoadFunc a non-nil partial Table.
+func TestLoadErrTooLong(t *testing.T) {
+	feed := "1.1.1.0/24 13335 Cloudflare\n10.0.0.0/8 1 " + strings.Repeat("x", 2<<20) + "\n2.2.2.0/24 2 After\n"
+	rd := func() io.Reader { return strings.NewReader(feed) }
+
+	entries, err := ParseSpec(rd())
+	if !errors.Is(err, bufio.ErrTooLong) {
+		t.Fatalf("ParseSpec err = %v, want bufio.ErrTooLong", err)
+	}
+	if len(entries) != 1 || entries[0].Prefix.String() != "1.1.1.0/24" {
+		t.Errorf("ParseSpec entries = %+v, want only the line before the long one", entries)
+	}
+	if set, err := LoadSet(rd()); set != nil || !errors.Is(err, bufio.ErrTooLong) {
+		t.Errorf("LoadSet = %v, %v, want nil, ErrTooLong", set, err)
+	}
+	if set, table, err := LoadASN(rd()); set != nil || table != nil || !errors.Is(err, bufio.ErrTooLong) {
+		t.Errorf("LoadASN = %v, %v, %v, want nil, nil, ErrTooLong", set, table, err)
+	}
+	tbl, err := LoadFunc(rd(), func(f []string) (netip.Prefix, string, bool) {
+		p, perr := ParsePrefix(f[0])
+		return p, "v", perr == nil
+	})
+	if !errors.Is(err, bufio.ErrTooLong) {
+		t.Fatalf("LoadFunc err = %v, want bufio.ErrTooLong", err)
+	}
+	if tbl == nil {
+		t.Fatal("LoadFunc returned a nil Table; want the partial one")
+	}
+	if _, ok := tbl.Lookup(mustAddr("1.1.1.1")); !ok {
+		t.Error("partial Table lost the line read before the failure")
+	}
+	if _, ok := tbl.Lookup(mustAddr("2.2.2.2")); ok {
+		t.Error("partial Table contains a line after the failure")
 	}
 }

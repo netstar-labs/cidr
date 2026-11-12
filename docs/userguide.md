@@ -89,17 +89,31 @@ Most sets come from a text feed. `ParseSpec` reads a whitespace-delimited
 `<cidr> [ASN] [org...]` stream — the shape of a public IP-to-ASN table:
 
 ```
-# blank lines and #-comments are ignored
+# blank lines and whole-line #-comments are ignored
 10.0.0.0/8
 1.1.1.0/24     13335 Cloudflare, Inc.
-8.8.8.0/24     AS15169 Google LLC        # a leading "AS" is accepted
-203.0.113.7    64500 Example Org         # a bare address is a /32 host route
+# a leading "AS" is accepted
+8.8.8.0/24     AS15169 Google LLC
+# a bare address is a /32 host route
+203.0.113.7    64500 Example Org
 2001:db8::/32  64502 Documentation v6
 ```
 
-The ASN and org are optional; a bare CIDR list is valid. Lines whose first field
-is not a valid prefix are skipped (so an occasional junk line in a large feed
-does not fail the load) — only an underlying I/O error is returned.
+The ASN and org are optional; a bare CIDR list is valid. If the second field is
+not a valid ASN it starts the org instead (and the ASN is 0), so the grammar is
+`<cidr> [ASN] [org...]`.
+
+**Only whole lines that begin with `#` are comments.** A `#` anywhere else in a
+line is data: `203.0.113.7 64500 Example Org # note` yields the org
+`Example Org # note`. Put each annotation on its own `#` line.
+
+Lines whose first field is not a valid prefix are skipped (so an occasional junk
+line in a large feed does not fail the load). The only error is a failed read,
+which includes `bufio.ErrTooLong` for a line of 1 MiB or more. On error:
+`ParseSpec` returns the entries parsed before the failure plus the error;
+`LoadSet` and `LoadASN` return nil plus the error; `LoadFunc` returns a non-nil
+`Table` of the lines read before the failure plus the error (discard it unless a
+partial table is acceptable).
 
 ```go
 entries, err := cidr.ParseSpec(r)              // []cidr.SpecEntry{Prefix, ASN, Org}
@@ -141,7 +155,8 @@ The `cidr` CLI's `-spec` accepts either form — it sniffs the first byte, so a
 `ParseSpec`/`LoadASN` are ASN-shaped. For any other `<cidr> <data...>` feed,
 `LoadFunc` builds a `Table[V]` and hands the format to you: a `parse` callback
 maps a line's whitespace fields to a prefix and value, returning `false` to skip
-the line (blank lines and `#`-comments are dropped for you).
+the line (blank lines and whole-line `#`-comments are dropped for you; a `#`
+inside a line stays in its field).
 
 For example, a feed that maps networks to **six-digit classification codes**
 (an industry taxonomy, a threat category, a tenant id — anything), with an
@@ -150,7 +165,8 @@ optional label after the code:
 ```
 # <cidr> <6-digit code> [label...]
 1.1.1.0/24     518210 Data Processing & Hosting
-1.1.1.128/25   541512 Computer Systems Design      # nested, more specific
+# nested, more specific
+1.1.1.128/25   541512 Computer Systems Design
 10.0.0.0/8     999999 Private Use
 2001:db8::/32  100002 Documentation
 ```
@@ -197,6 +213,20 @@ For a `Table`, the range is decomposed into its minimal set of CIDR prefixes
 (each carrying `v`) so longest-prefix match stays well defined — a more-specific
 range's pieces have longer masks and win. Reversed or mixed-family ranges are
 ignored.
+
+One caveat: when a nested range and its covering range decompose to an
+*identical* piece, longest-prefix match cannot separate them and `Add`'s rule
+decides — the value added last wins. For example `10.0.0.0–10.0.0.127` inside
+`10.0.0.0–10.0.0.191` both produce `10.0.0.0/25`, so after
+
+```go
+tb.AddRange(netip.MustParseAddr("10.0.0.0"), netip.MustParseAddr("10.0.0.191"), "outer")
+tb.AddRange(netip.MustParseAddr("10.0.0.0"), netip.MustParseAddr("10.0.0.127"), "inner")
+```
+
+`10.0.0.5` is `"inner"` and `10.0.0.150` is `"outer"`; add them in the opposite
+order and `10.0.0.5` becomes `"outer"`. Add covering ranges **before** the
+ranges nested in them.
 
 ## Data sources
 
@@ -554,9 +584,10 @@ before `Freeze`.
 | `ParsePrefix(string) (netip.Prefix, error)` | parse a CIDR or bare address |
 | `RangePrefixes(lo, hi netip.Addr) []netip.Prefix` | decompose a range into its minimal CIDR set |
 | `AppendRangePrefixes(dst, lo, hi) []netip.Prefix` | RangePrefixes into a reused buffer (hot loops) |
-| `ParseSpec(io.Reader) ([]SpecEntry, error)` | parse a `<cidr> ASN org` stream |
+| `ParseSpec(io.Reader) ([]SpecEntry, error)` | parse a `<cidr> [ASN] [org...]` stream |
 | `LoadSet(io.Reader) (*Set, error)` | spec → membership `Set` |
 | `LoadASN(io.Reader) (*Set, *Table[Info], error)` | spec → `Set` + `Table[Info]` |
+| `BuildASN([]SpecEntry) (*Set, *Table[Info])` | already-parsed entries → `Set` + `Table[Info]` (the step `LoadASN` wraps) |
 | `LoadFunc[V](io.Reader, parse) (*Table[V], error)` | any custom `<cidr> data...` feed → `Table[V]` |
 | `ParseRefs(io.Reader) (*Refs, error)` | decode a `{name,version,list}` refs JSON envelope |
 | `(*Refs) Entries() []SpecEntry` | parse the refs list into spec entries |
@@ -565,6 +596,22 @@ before `Freeze`.
 | `EncodeASN(asn, orgID uint32, flags uint8) uint64` | pack a compact value |
 | `DecodeASN(uint64) (asn, orgID uint32, flags uint8)` | unpack it |
 | `Info`, `SpecEntry`, `Refs` | value, parsed-entry, and refs-envelope types |
+
+### MaxMind DB reader
+
+A stdlib-only reader for `.mmdb` files (for example those `mmdb-write`
+produces). Each lookup decodes a `map[string]any` for the record, so it is
+**not** allocation-free like `Set.Contains` and `Table.Lookup`.
+
+| Symbol | Purpose |
+|---|---|
+| `OpenMMDB(path string) (*MMDB, error)` | read and parse the database at `path` |
+| `OpenMMDBBytes(data []byte) (*MMDB, error)` | parse an in-memory database (the slice is retained, not copied; do not mutate it) |
+| `(*MMDB) Lookup(net.IP) (record map[string]any, ok bool, err error)` | the record for an address; `ok` is false when there is none |
+| `(*MMDB) Metadata() map[string]any` | the decoded metadata (`node_count`, `record_size`, `ip_version`, `database_type`, …) |
+| `(*MMDB) Close() error` | a no-op kept for API symmetry; safe to call concurrently with lookups |
+
+An `*MMDB` is safe for concurrent lookups.
 
 ## Command-line tool
 
