@@ -1,0 +1,2 @@
+go test fuzz v1
+string("ar\xd1n|GB|ipv6|::|80|'''''AAAAA'''202:0((((((121|allocated|jkl")

@@ -8,13 +8,20 @@ import (
 
 // AddRange adds the inclusive address interval [lo, hi] to the membership set.
 // Both ends must be the same family and lo <= hi; an invalid range is ignored.
-// A zone on either end is ignored.
+// A zone on either end is ignored. IPv4-mapped ends
+// (::ffff:a.b.c.d) are unmapped together, and only when neither end is a genuine
+// IPv6 address: ::ffff:1.2.3.0-::ffff:1.2.3.255 is an IPv4 range, but
+// ::-::ffff:ffff:ffff has one end in ::ffff:0:0/96 and stays an IPv6 range
+// (it is kept, not rejected as mixed-family). Such a range is stored whole in the
+// IPv6 array, so the part of it inside ::ffff:0:0/96 is not matched by IPv4 (or
+// IPv4-mapped) queries; TableBuilder.AddRange, which adds the range piece by
+// piece, files those pieces as IPv4 instead. Real feeds do not produce such ranges.
 // This is the natural entry point for range-based feeds (start/end columns)
 // such as iptoasn.com or the RIR delegated files.
 func (b *Builder) AddRange(lo, hi netip.Addr) {
 	// Zones are dropped: queries strip them, so a zoned bound would sort after
 	// the plain address and the range's first address would never match.
-	lo, hi = lo.Unmap().WithZone(""), hi.Unmap().WithZone("")
+	lo, hi = normRange(lo, hi)
 	if !validRange(lo, hi) {
 		return
 	}
@@ -39,6 +46,20 @@ func (b *TableBuilder[V]) AddRange(lo, hi netip.Addr, v V) {
 	}
 }
 
+// normRange strips zones and decides the range's family. The ends are unmapped
+// together, and only when both are IPv4 or IPv4-mapped: the range is then an
+// IPv4 range. If either end is a genuine IPv6 address (one outside
+// ::ffff:0:0/96) the range spans IPv6 space and both ends stay as given; unmapping
+// a mapped end alone would turn a genuine IPv6 range such as ::-::ffff:ffff:ffff
+// into a mixed-family one and lose it.
+func normRange(lo, hi netip.Addr) (netip.Addr, netip.Addr) {
+	lo, hi = lo.WithZone(""), hi.WithZone("")
+	if ulo, uhi := lo.Unmap(), hi.Unmap(); ulo.Is4() && uhi.Is4() {
+		return ulo, uhi
+	}
+	return lo, hi
+}
+
 func validRange(lo, hi netip.Addr) bool {
 	return lo.IsValid() && hi.IsValid() && lo.Is4() == hi.Is4() && !hi.Less(lo)
 }
@@ -46,6 +67,9 @@ func validRange(lo, hi netip.Addr) bool {
 // RangePrefixes decomposes the inclusive interval [lo, hi] into the minimal,
 // ordered set of CIDR prefixes that exactly cover it (the standard range-to-CIDR
 // split). It returns nil for an invalid range: mismatched families or hi < lo.
+// IPv4-mapped ends (::ffff:a.b.c.d) are unmapped together, and only when neither
+// end is a genuine IPv6 address: a range with one mapped end and one IPv6 end is
+// an IPv6 range and keeps both ends as IPv6 (::-::ffff:255.255.255.255 is ::/80).
 func RangePrefixes(lo, hi netip.Addr) []netip.Prefix {
 	return AppendRangePrefixes(nil, lo, hi)
 }
@@ -55,7 +79,7 @@ func RangePrefixes(lo, hi netip.Addr) []netip.Prefix {
 // (folding millions of ranges) to avoid a fresh allocation per call;
 // RangePrefixes is the dst==nil convenience wrapper.
 func AppendRangePrefixes(dst []netip.Prefix, lo, hi netip.Addr) []netip.Prefix {
-	lo, hi = lo.Unmap().WithZone(""), hi.Unmap().WithZone("")
+	lo, hi = normRange(lo, hi)
 	if !validRange(lo, hi) {
 		return dst
 	}

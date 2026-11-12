@@ -1,6 +1,7 @@
 package cidr
 
 import (
+	"math/big"
 	"math/rand"
 	"net/netip"
 	"slices"
@@ -237,5 +238,192 @@ func TestAddRangeZoned(t *testing.T) {
 	// differing zones on the same address are not "hi < lo"
 	if got := RangePrefixes(netip.MustParseAddr("fe80::5%b"), netip.MustParseAddr("fe80::5%a")); len(got) != 1 {
 		t.Errorf("RangePrefixes mixed zones = %v, want one /128", got)
+	}
+}
+
+// TestRangeOneEndMapped pins #54: a genuine IPv6 range with one end inside
+// ::ffff:0:0/96 stays IPv6; the ends are unmapped only when neither is genuine IPv6.
+func TestRangeOneEndMapped(t *testing.T) {
+	pfx := func(ss ...string) []netip.Prefix {
+		var ps []netip.Prefix
+		for _, s := range ss {
+			ps = append(ps, netip.MustParsePrefix(s))
+		}
+		return ps
+	}
+	cases := []struct {
+		lo, hi string
+		want   []netip.Prefix
+	}{
+		// upper end mapped, lower end plain IPv6 (the CI fuzz finding)
+		{"::", "::ffff:255.255.255.255", pfx("::/80")},
+		{"::fffe:0:0", "::ffff:255.255.255.255", pfx("::fffe:0:0/95")},
+		{"::", "::ffff:ffff:ffff", pfx("::/80")},
+		// both ends mapped: an IPv4 range, exactly as before
+		{"::ffff:1.2.3.0", "::ffff:1.2.3.255", pfx("1.2.3.0/24")},
+		{"::ffff:0.0.0.0", "::ffff:255.255.255.255", pfx("0.0.0.0/0")},
+		{"::ffff:1.2.3.4", "::ffff:1.2.3.4", pfx("1.2.3.4/32")},
+		// mapped bound with a zone still unmaps (zone stripped first)
+		{"::ffff:1.2.3.0%eth0", "::ffff:1.2.3.255", pfx("1.2.3.0/24")},
+		// native IPv4 + mapped: an IPv4 range, as before
+		{"1.2.3.0", "::ffff:1.2.3.255", pfx("1.2.3.0/24")},
+		{"::ffff:1.2.3.0", "1.2.3.255", pfx("1.2.3.0/24")},
+		// native v4 + native v6, either order: rejected
+		{"1.2.3.0", "::1", nil},
+		{"::1", "1.2.3.0", nil},
+		// reversed after the family decision
+		{"::ffff:ffff:ffff", "::", nil},
+	}
+	for _, c := range cases {
+		lo, hi := netip.MustParseAddr(c.lo), netip.MustParseAddr(c.hi)
+		got := RangePrefixes(lo, hi)
+		if !slices.Equal(got, c.want) {
+			t.Errorf("RangePrefixes(%s, %s) = %v, want %v", c.lo, c.hi, got, c.want)
+		}
+	}
+
+	// A mapped lower end with an IPv6 upper end is IPv6 too, and still tiles.
+	lo, hi := netip.MustParseAddr("::ffff:0:1"), netip.MustParseAddr("0:0:0:1::")
+	ps := RangePrefixes(lo, hi)
+	checkCover(t, lo.WithZone(""), hi, ps)
+
+	// Set: the v6 range is stored and matches non-mapped addresses inside it.
+	// A ::ffff:a.b.c.d QUERY is unmapped to IPv4 and resolves against the IPv4
+	// array (families never cross), so it is not a member of the v6 range.
+	b := NewBuilder()
+	b.AddRange(netip.MustParseAddr("::"), netip.MustParseAddr("::ffff:ffff:ffff"))
+	s := b.Freeze()
+	if s.Len() != 1 {
+		t.Fatalf("Set.Len = %d, want 1", s.Len())
+	}
+	for _, q := range []string{"::", "::1", "::fffe:1:2", "::ffff:0:0"} {
+		want := q != "::ffff:0:0"
+		if got := s.Contains(netip.MustParseAddr(q)); got != want {
+			t.Errorf("Set.Contains(%s) = %v, want %v", q, got, want)
+		}
+	}
+	if s.Contains(netip.MustParseAddr("::ffff:1.2.3.4")) {
+		t.Error("a mapped query is an IPv4 lookup and must not hit the IPv6 range")
+	}
+	if s.Contains(netip.MustParseAddr("0:0:0:1::")) {
+		t.Error("0:0:0:1:: is above the range")
+	}
+
+	// Table goes through RangePrefixes.
+	tb := NewTableBuilder[int]()
+	tb.AddRange(netip.MustParseAddr("::fffe:0:0"), netip.MustParseAddr("::ffff:255.255.255.255"), 9)
+	tab := tb.Freeze()
+	if v, ok := tab.Lookup(netip.MustParseAddr("::fffe:1:2")); !ok || v != 9 {
+		t.Errorf("Table.Lookup(::fffe:1:2) = %d,%v, want 9,true", v, ok)
+	}
+
+	// Both ends mapped: the Set holds an IPv4 range.
+	b = NewBuilder()
+	b.AddRange(netip.MustParseAddr("::ffff:1.2.3.0"), netip.MustParseAddr("::ffff:1.2.3.255"))
+	s = b.Freeze()
+	if !s.Contains(netip.MustParseAddr("1.2.3.9")) || !s.Contains(netip.MustParseAddr("::ffff:1.2.3.9")) || len(s.lo4) != 1 || len(s.lo6) != 0 {
+		t.Errorf("both-mapped range not stored as IPv4: lo4=%v lo6=%v", s.lo4, s.lo6)
+	}
+}
+
+// oracleRangePrefixes is an independent big.Int decomposition of [lo, hi] (no
+// unmapping, no u128), used to check RangePrefixes on ranges that never touch
+// ::ffff:0:0/96, where the old and new unmapping rules must agree.
+func oracleRangePrefixes(lo, hi netip.Addr) []netip.Prefix {
+	width := 128
+	if lo.Is4() {
+		width = 32
+	}
+	toInt := func(a netip.Addr) *big.Int { return new(big.Int).SetBytes(a.AsSlice()) }
+	toAddr := func(x *big.Int) netip.Addr {
+		buf := make([]byte, width/8)
+		x.FillBytes(buf)
+		a, _ := netip.AddrFromSlice(buf)
+		return a
+	}
+	a, b := toInt(lo), toInt(hi)
+	one := big.NewInt(1)
+	var out []netip.Prefix
+	for a.Cmp(b) <= 0 {
+		k := 0
+		for k < width {
+			size := new(big.Int).Lsh(one, uint(k+1))
+			if new(big.Int).Mod(a, size).Sign() != 0 {
+				break
+			}
+			last := new(big.Int).Add(a, size)
+			last.Sub(last, one)
+			if last.Cmp(b) > 0 {
+				break
+			}
+			k++
+		}
+		out = append(out, netip.PrefixFrom(toAddr(a), width-k))
+		a.Add(a, new(big.Int).Lsh(one, uint(k)))
+	}
+	return out
+}
+
+// TestRangePrefixesOracle: random IPv6 ranges with neither end in
+// ::ffff:0:0/96, random IPv4 ranges and random both-mapped ranges decompose
+// exactly as the oracle says (the pre-#54 code was checked equal to this).
+func TestRangePrefixesOracle(t *testing.T) {
+	rng := rand.New(rand.NewSource(54))
+	mapped := netip.MustParsePrefix("::ffff:0:0/96")
+	rand6 := func() netip.Addr {
+		var v [16]byte
+		for i := range v {
+			v[i] = byte(rng.Intn(256))
+		}
+		// bias the shapes: shared prefixes and runs of zeros/ones make
+		// aligned, edge and whole-space ranges common.
+		switch rng.Intn(4) {
+		case 0:
+			for i := rng.Intn(16); i < 16; i++ {
+				v[i] = 0
+			}
+		case 1:
+			for i := rng.Intn(16); i < 16; i++ {
+				v[i] = 0xff
+			}
+		}
+		return netip.AddrFrom16(v)
+	}
+	n := 0
+	for n < 20000 {
+		lo, hi := rand6(), rand6()
+		if rng.Intn(2) == 0 {
+			// shared leading bytes give long, nearby ranges
+			a, c := lo.As16(), hi.As16()
+			k := rng.Intn(15)
+			copy(c[:k], a[:k])
+			hi = netip.AddrFrom16(c)
+		}
+		if hi.Less(lo) {
+			lo, hi = hi, lo
+		}
+		if mapped.Contains(lo) || mapped.Contains(hi) {
+			continue
+		}
+		n++
+		if got, want := RangePrefixes(lo, hi), oracleRangePrefixes(lo, hi); !slices.Equal(got, want) {
+			t.Fatalf("v6 %v-%v: got %v, oracle %v", lo, hi, got, want)
+		}
+	}
+	for range 5000 {
+		a, c := rng.Uint32(), rng.Uint32()
+		if c < a {
+			a, c = c, a
+		}
+		lo4 := netip.AddrFrom4([4]byte{byte(a >> 24), byte(a >> 16), byte(a >> 8), byte(a)})
+		hi4 := netip.AddrFrom4([4]byte{byte(c >> 24), byte(c >> 16), byte(c >> 8), byte(c)})
+		want := oracleRangePrefixes(lo4, hi4)
+		if got := RangePrefixes(lo4, hi4); !slices.Equal(got, want) {
+			t.Fatalf("v4 %v-%v: got %v, oracle %v", lo4, hi4, got, want)
+		}
+		// both ends mapped
+		if got := RangePrefixes(netip.AddrFrom16(lo4.As16()), netip.AddrFrom16(hi4.As16())); !slices.Equal(got, want) {
+			t.Fatalf("mapped %v-%v: got %v, oracle %v", lo4, hi4, got, want)
+		}
 	}
 }
