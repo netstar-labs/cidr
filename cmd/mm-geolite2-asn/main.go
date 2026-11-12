@@ -7,6 +7,10 @@
 //	mm-geolite2-asn -in GeoLite2-ASN-CSV.zip                 # convert a local zip
 //	mm-geolite2-asn -in GeoLite2-ASN-Blocks-IPv4.csv         # or a single CSV (.csv/.csv.gz)
 //
+// The output file is replaced atomically and only when at least one row was
+// converted; on any failure (fetch, stall, bad header, corrupt input, zero rows)
+// the previous file is left untouched and the exit status is 1.
+//
 // Downloading needs a free MaxMind account's license key. The download is a zip
 // holding GeoLite2-ASN-Blocks-IPv4.csv and -IPv6.csv, both with the header
 // "network,autonomous_system_number,autonomous_system_organization".
@@ -14,21 +18,18 @@ package main
 
 import (
 	"archive/zip"
-	"bufio"
 	"bytes"
-	"compress/gzip"
 	"encoding/csv"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/netstar-labs/cidr"
+	"github.com/netstar-labs/cidr/internal/feedio"
 )
 
 const downloadURL = "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN-CSV&license_key=%s&suffix=zip"
@@ -46,8 +47,8 @@ func main() {
 	family := flag.String("family", "both", `which blocks to emit: "v4", "v6", or "both"`)
 	url := flag.String("url", "", "override the download URL")
 	in := flag.String("in", "", "local GeoLite2-ASN CSV (.csv/.csv.gz) or the CSV zip")
-	out := flag.String("o", "", "write to this file instead of stdout")
-	timeout := flag.Duration("timeout", 30*time.Second, "dial/response-header timeout for the download")
+	out := flag.String("o", "", `write to this file (atomically; "-" or empty is stdout)`)
+	timeout := flag.Duration("timeout", 30*time.Second, "download timeout: dial/TLS/response-header limit, and the idle period after which a download that stops sending bytes fails")
 	flag.Parse()
 
 	if *version {
@@ -67,31 +68,23 @@ func main() {
 }
 
 func run(license, family, url, in, out string, timeout time.Duration) error {
-	var w io.Writer = os.Stdout
-	if out != "" {
-		f, err := os.Create(out)
+	// Acquire the whole source first; no output exists until it is in hand. conv
+	// then converts it into the (temp) output.
+	var conv func(w io.Writer) (stats, error)
+	switch {
+	case in != "" && strings.HasSuffix(strings.ToLower(in), ".zip"):
+		data, err := os.ReadFile(in)
 		if err != nil {
 			return err
 		}
-		defer f.Close()
-		w = f
-	}
-	bw := bufio.NewWriter(w)
-
-	var st stats
-	var err error
-	switch {
-	case in != "" && strings.HasSuffix(strings.ToLower(in), ".zip"):
-		var data []byte
-		if data, err = os.ReadFile(in); err == nil {
-			st, err = processZip(data, family, bw)
-		}
+		conv = func(w io.Writer) (stats, error) { return processZip(data, family, w) }
 	case in != "":
-		var rc io.ReadCloser
-		if rc, err = openFile(in); err == nil {
-			st, err = convertCSV(rc, bw)
-			rc.Close()
+		rc, err := openFile(in)
+		if err != nil {
+			return err
 		}
+		defer rc.Close()
+		conv = func(w io.Writer) (stats, error) { return convertCSV(rc, w) }
 	default: // download the zip
 		if url == "" {
 			if license == "" {
@@ -99,42 +92,78 @@ func run(license, family, url, in, out string, timeout time.Duration) error {
 			}
 			url = fmt.Sprintf(downloadURL, license)
 		}
-		var data []byte
-		if data, err = fetchBytes(url, timeout); err == nil {
-			st, err = processZip(data, family, bw)
+		data, err := fetchBytes(url, timeout)
+		if err != nil {
+			return err
 		}
+		conv = func(w io.Writer) (stats, error) { return processZip(data, family, w) }
 	}
+
+	o, err := feedio.Create(out)
 	if err != nil {
 		return err
 	}
-	if err := bw.Flush(); err != nil {
+	defer o.Abort()
+
+	st, err := conv(o)
+	if err != nil {
+		return err
+	}
+	if st.rows == 0 {
+		return fmt.Errorf("no usable rows (skipped=%d); nothing published, previous output left untouched", st.malformed)
+	}
+	if err := o.Commit(); err != nil {
 		return err
 	}
 
-	dst := "stdout"
-	if out != "" {
-		dst = out
-	}
-	fmt.Fprintf(os.Stderr, "mm-geolite2-asn: prefixes=%d skipped=%d -> %s\n", st.rows, st.malformed, dst)
+	fmt.Fprintf(os.Stderr, "mm-geolite2-asn: prefixes=%d skipped=%d -> %s\n", st.rows, st.malformed, o.Name())
 	return nil
 }
 
 type stats struct{ rows, malformed int }
 
-// convertCSV reads a GeoLite2-ASN blocks CSV and writes "<cidr> <asn> <org>".
-// The header row and any unparseable network are skipped.
+// wantHeader is the GeoLite2-ASN blocks header; the three columns are read by
+// position, so a file whose columns are reordered or renamed must be rejected
+// rather than converted into a wrong feed.
+var wantHeader = []string{"network", "autonomous_system_number", "autonomous_system_organization"}
+
+// convertCSV reads one GeoLite2-ASN blocks CSV and writes "<cidr> <asn> <org>".
+// The first record must be the header (network, autonomous_system_number,
+// autonomous_system_organization, in that order); anything else is an error. A
+// row whose network is not a prefix, whose ASN is empty, or that is short or has
+// a CSV syntax error is counted as malformed and skipped. Any other read error
+// is returned.
 func convertCSV(r io.Reader, w io.Writer) (stats, error) {
 	var st stats
 	cr := csv.NewReader(r)
 	cr.FieldsPerRecord = -1
+
+	hdr, err := cr.Read()
+	if errors.Is(err, io.EOF) {
+		return st, errors.New("empty CSV: no header row")
+	}
+	if err != nil {
+		return st, fmt.Errorf("header: %w", err)
+	}
+	if err := checkHeader(hdr); err != nil {
+		return st, err
+	}
+
 	for {
 		rec, err := cr.Read()
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			st.malformed++
-			continue // recoverable per-line CSV error
+			// Only a per-line CSV syntax error is recoverable. Any other error
+			// (a truncated gzip, a failed read) repeats on every call: skipping
+			// it never advances, so it must stop the run.
+			var pe *csv.ParseError
+			if errors.As(err, &pe) {
+				st.malformed++
+				continue
+			}
+			return st, err
 		}
 		if len(rec) < 3 {
 			st.malformed++
@@ -142,7 +171,8 @@ func convertCSV(r io.Reader, w io.Writer) (stats, error) {
 		}
 		p, perr := cidr.ParsePrefix(rec[0])
 		if perr != nil {
-			continue // header ("network") or junk
+			st.malformed++ // not a prefix
+			continue
 		}
 		asn := strings.TrimSpace(rec[1])
 		if asn == "" {
@@ -155,6 +185,26 @@ func convertCSV(r io.Reader, w io.Writer) (stats, error) {
 		st.rows++
 	}
 	return st, nil
+}
+
+// checkHeader reports whether rec starts with the expected GeoLite2-ASN columns.
+func checkHeader(rec []string) error {
+	if len(rec) >= len(wantHeader) {
+		ok := true
+		for i, want := range wantHeader {
+			got := strings.TrimSpace(rec[i])
+			if i == 0 {
+				got = strings.TrimPrefix(got, "\ufeff") // BOM from a spreadsheet round-trip
+			}
+			if !strings.EqualFold(got, want) {
+				ok = false
+			}
+		}
+		if ok {
+			return nil
+		}
+	}
+	return fmt.Errorf("unexpected header %q, want %q", rec, wantHeader)
 }
 
 // processZip converts every GeoLite2-ASN blocks CSV in the zip that matches the
@@ -195,51 +245,30 @@ func matchFamily(name, family string) bool {
 	}
 }
 
-// openFile opens a local CSV, transparently decompressing a gzip payload.
+// openFile opens a local CSV, transparently decompressing a gzip payload. A
+// corrupt gzip is an error.
 func openFile(path string) (io.ReadCloser, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	br := bufio.NewReader(f)
-	if magic, _ := br.Peek(2); len(magic) == 2 && magic[0] == 0x1f && magic[1] == 0x8b {
-		zr, err := gzip.NewReader(br)
-		if err != nil {
-			f.Close()
-			return nil, err
-		}
-		return struct {
-			io.Reader
-			io.Closer
-		}{zr, f}, nil
+	r, err := feedio.MaybeGunzip(f)
+	if err != nil {
+		f.Close()
+		return nil, err
 	}
 	return struct {
 		io.Reader
 		io.Closer
-	}{br, f}, nil
+	}{r, f}, nil
 }
 
+// fetchBytes downloads url into memory; a body idle for timeout is an error.
 func fetchBytes(url string, timeout time.Duration) ([]byte, error) {
-	client := &http.Client{Transport: &http.Transport{
-		// A hand-built Transport has a nil Proxy, which silently ignores
-		// HTTPS_PROXY/HTTP_PROXY/NO_PROXY — unlike http.DefaultTransport.
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           (&net.Dialer{Timeout: timeout}).DialContext,
-		TLSHandshakeTimeout:   timeout,
-		ResponseHeaderTimeout: timeout,
-	}}
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	body, err := feedio.Fetch(url, "mm-geolite2-asn-cidr (+github.com/netstar-labs/cidr)", timeout, timeout)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "mm-geolite2-asn-cidr (+github.com/netstar-labs/cidr)")
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s: %s", url, resp.Status)
-	}
-	return io.ReadAll(resp.Body)
+	defer body.Close()
+	return io.ReadAll(body)
 }

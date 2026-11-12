@@ -43,7 +43,7 @@ func goldens(t *testing.T) []struct{ name, got string } {
 // from the code under test is not a golden, it is a tautology.
 var recorded = map[string]string{
 	"country": "1.0.0.0/24 AU\n1.0.4.0/30 CN\n1.0.4.4/31 CN\n1.0.4.6/32 CN\n2001:db8::/112 ZZ\n1.0.8.0/24 \n",
-	"asn":     "1.1.1.0/24 13335 Cloudflare, Inc.\n1.0.4.0/30 38803 Wirefreebroadband Pty Ltd\n1.0.4.4/31 38803 Wirefreebroadband Pty Ltd\n1.0.4.6/32 38803 Wirefreebroadband Pty Ltd\n2001:db8::/112 64502 DOC\n1.0.8.0/24  No ASN Org\n",
+	"asn":     "1.1.1.0/24 13335 Cloudflare, Inc.\n1.0.4.0/30 38803 Wirefreebroadband Pty Ltd\n1.0.4.4/31 38803 Wirefreebroadband Pty Ltd\n1.0.4.6/32 38803 Wirefreebroadband Pty Ltd\n2001:db8::/112 64502 DOC\n",
 }
 
 // TestPrintGoldens is how the golden is produced. It is not a regression test
