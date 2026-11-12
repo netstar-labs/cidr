@@ -69,7 +69,7 @@ func TestDecodeMMDBPointerWidths(t *testing.T) {
 					t.Skip("allocates a ~135 MB buffer")
 				}
 				buf := ptrBuf(c.hdr, base, c.target)
-				v, off, err := decodeMMDB(buf, 0, base, 0)
+				v, off, err := decodeTest(buf, 0, base, 0)
 				if err != nil {
 					t.Fatalf("decodeMMDB: %v", err)
 				}
@@ -92,7 +92,7 @@ func TestDecodeMMDBPointerRelativeToBase(t *testing.T) {
 	buf[10], buf[11] = 0x20, 0x05                 // pointer, p=5, at offset 10
 	copy(buf[30+5:], []byte{0x42, 'o', 'k'})      // ptrBase=30 -> target 35
 	copy(buf[10+5:], []byte{0x43, 'b', 'a', 'd'}) // a decoy where off+p would land
-	v, off, err := decodeMMDB(buf, 10, 30, 0)
+	v, off, err := decodeTest(buf, 10, 30, 0)
 	if err != nil || v != "ok" || off != 12 {
 		t.Fatalf("got (%#v, %d, %v), want (\"ok\", 12, nil)", v, off, err)
 	}
@@ -112,7 +112,7 @@ func TestDecodeMMDBPointerOutOfRange(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if v, _, err := decodeMMDB(c.buf, 0, 0, 0); err == nil {
+			if v, _, err := decodeTest(c.buf, 0, 0, 0); err == nil {
 				t.Fatalf("decodeMMDB = %#v, want an error", v)
 			}
 		})
@@ -156,7 +156,7 @@ func TestDecodeMMDBExtendedSizes(t *testing.T) {
 				t.Skip("allocates a ~16 MB buffer")
 			}
 			buf := stringBuf(c.hdr, c.n)
-			v, off, err := decodeMMDB(buf, 0, 0, 0)
+			v, off, err := decodeTest(buf, 0, 0, 0)
 			if err != nil {
 				t.Fatalf("decodeMMDB: %v", err)
 			}
@@ -171,7 +171,7 @@ func TestDecodeMMDBExtendedSizes(t *testing.T) {
 				t.Errorf("offset = %d, want %d", off, len(c.hdr)+c.n)
 			}
 			// one byte short of the claimed length must be truncation, not a panic
-			if _, _, err := decodeMMDB(buf[:len(buf)-1], 0, 0, 0); c.n > 0 && !errors.Is(err, errTrunc) {
+			if _, _, err := decodeTest(buf[:len(buf)-1], 0, 0, 0); c.n > 0 && !errors.Is(err, errTrunc) {
 				t.Errorf("one byte short: err = %v, want errTrunc", err)
 			}
 		})
@@ -195,7 +195,7 @@ func TestDecodeMMDBExtendedType(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			v, off, err := decodeMMDB(c.buf, 0, 0, 0)
+			v, off, err := decodeTest(c.buf, 0, 0, 0)
 			if err != nil || v != c.want || off != c.off {
 				t.Fatalf("got (%#v, %d, %v), want (%#v, %d, nil)", v, off, err, c.want, c.off)
 			}
@@ -225,11 +225,11 @@ func TestDecodeMMDBHeaderTruncation(t *testing.T) {
 	}
 	for _, h := range headers {
 		t.Run(h.name, func(t *testing.T) {
-			if _, _, err := decodeMMDB(nil, 0, 0, 0); err == nil {
+			if _, _, err := decodeTest(nil, 0, 0, 0); err == nil {
 				t.Error("empty buffer: want an error")
 			}
 			for k := 1; k < len(h.hdr); k++ {
-				_, _, err := decodeMMDB(h.hdr[:k], 0, 0, 0)
+				_, _, err := decodeTest(h.hdr[:k], 0, 0, 0)
 				if err == nil {
 					t.Errorf("cut at %d of %d bytes: want an error", k, len(h.hdr))
 					continue
@@ -244,7 +244,7 @@ func TestDecodeMMDBHeaderTruncation(t *testing.T) {
 		})
 	}
 	// An extended ctrl byte with no type byte after it.
-	if _, _, err := decodeMMDB([]byte{0x00}, 0, 0, 0); err == nil {
+	if _, _, err := decodeTest([]byte{0x00}, 0, 0, 0); err == nil {
 		t.Error("lone extended ctrl byte: want an error")
 	}
 }
@@ -267,9 +267,44 @@ func TestDecodeMMDBPayloadTruncation(t *testing.T) {
 	}
 	for name, buf := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, _, err := decodeMMDB(buf, 0, 0, 0); err == nil {
+			if _, _, err := decodeTest(buf, 0, 0, 0); err == nil {
 				t.Fatal("want an error")
 			}
 		})
+	}
+}
+
+// Only extended type bytes 1..8 (types 8..15) are valid: 0 would be type 7 (map, which
+// has its own non-extended code) and anything above 8 is past the last type. The type
+// must not wrap: 0xFB is 258, not string; 0xFA is 257, not pointer.
+func TestDecodeMMDBExtendedTypeRange(t *testing.T) {
+	for _, ext := range []byte{0x00, 0x09, 0x0a, 0x7f, 0xf9, 0xfa, 0xfb, 0xfc, 0xff} {
+		if v, _, err := decodeTest([]byte{0x00, ext, 0x00, 0x00}, 0, 0, 0); err == nil {
+			t.Errorf("extended type byte 0x%02x: got %#v, want an error", ext, v)
+		}
+	}
+	if v, _, err := decodeTest([]byte{0x00, 0x01}, 0, 0, 0); err != nil || v != int32(0) {
+		t.Errorf("extended type byte 0x01 (int32): got (%#v, %v)", v, err)
+	}
+	if v, _, err := decodeTest([]byte{0x04, 0x08, 0, 0, 0, 0}, 0, 0, 0); err != nil || v != float32(0) {
+		t.Errorf("extended type byte 0x08 (float): got (%#v, %v)", v, err)
+	}
+}
+
+// The budget: a value costs valueCost, a string its payload too; running out is an
+// error, and a budget is per decode, not shared.
+func TestDecodeMMDBBudget(t *testing.T) {
+	buf := append(hdr(2, 1000), bytes.Repeat([]byte{'a'}, 1000)...)
+	if _, _, err := decodeMMDB(buf, 0, 0, 0, &budget{left: valueCost + 999}); err != errBudget {
+		t.Errorf("one unit short: err = %v, want errBudget", err)
+	}
+	if _, _, err := decodeMMDB(buf, 0, 0, 0, &budget{left: valueCost + 1000}); err != nil {
+		t.Errorf("exact budget: err = %v, want nil", err)
+	}
+	if got := newBudget(0).left; got != 1<<20 {
+		t.Errorf("newBudget(0) = %d, want the 1<<20 floor", got)
+	}
+	if got := newBudget(1 << 20).left; got != 4<<20 {
+		t.Errorf("newBudget(1<<20) = %d, want 4*len", got)
 	}
 }
