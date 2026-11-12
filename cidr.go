@@ -84,8 +84,8 @@ func plusOneLess(hi, x netip.Addr) bool {
 
 // mergeRanges sorts intervals by lo and coalesces overlapping or adjacent ones.
 // It never modifies rs, and the result shares no memory with it: the merge runs
-// on a scratch copy and the result is copied out, so its capacity matches the
-// merged length rather than pinning the (possibly much larger) input array.
+// on a scratch copy and the result is copied out, sized to the merged length
+// (up to allocator rounding) rather than pinning the possibly much larger input.
 func mergeRanges(rs []iprange) []iprange {
 	if len(rs) < 2 {
 		return slices.Clone(rs)
