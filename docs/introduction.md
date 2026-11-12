@@ -13,12 +13,12 @@ binary search.
 
 Concretely, it is a small Go library with two structures. A `Builder` collects
 prefixes and `Freeze`s into a `Set` — an immutable, sorted array of merged
-`[lo, hi]` address intervals whose `Contains` is a single `sort.Search`. A
+`[lo, hi]` address intervals whose `Contains` is a single binary search. A
 `TableBuilder[V]` collects `(prefix, value)` pairs and `Freeze`s into a
 `Table[V]`, whose `Lookup` returns the value carried by the *most specific*
-prefix covering an address. Both are backed by contiguous `net/netip.Addr`
-arrays with no pointer-chasing on the query path, no interface dispatch, and no per-query
-allocation. Addresses arrive as strings through `ParsePrefix`, as
+prefix covering an address. Both freeze into contiguous integer arrays
+(`uint32` for IPv4, two `uint64` words for IPv6) with no pointer-chasing on the
+query path, no interface dispatch, and no per-query allocation. Addresses arrive as strings through `ParsePrefix`, as
 whitespace-delimited spec text or a refs JSON envelope through the `Load*`
 loaders, or as start/end ranges through `AddRange` — the shapes real IP-to-ASN,
 geo, and blocklist feeds actually ship in.

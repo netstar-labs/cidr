@@ -11,16 +11,15 @@
 //     prefixes into disjoint segments at build time (longest-prefix match), so a
 //     query is a single binary search that returns the value directly.
 //
-// Both are backed by sorted, contiguous arrays of net/netip addresses: no
-// pointer-chasing on the query path and no interface dispatch. Each netip.Addr
-// carries one shared, interned zone handle, so the arrays are not plain data
-// that can be dumped from memory; persisting a set means encoding its addresses
-// (for example with Addr.As16). For the static, build-once-query-many workloads
-// this package targets — blocklists, allowlists, IP-to-ASN and geo tables — a
-// sorted range array is designed to be faster and an order of magnitude smaller
-// than a prefix trie. That comparison was made at design time against a
-// path-compressed trie that is not part of this repository and is not
-// reproduced here; see docs/architecture.md for the trade-off.
+// Once frozen, both are backed by sorted, contiguous arrays of plain integers
+// (uint32 for IPv4, a pair of uint64 words for IPv6): no pointer-chasing on the
+// query path, no interface dispatch, and no pointers in the address arrays. The
+// builders work in net/netip addresses; Freeze converts. For the static,
+// build-once-query-many workloads this package targets — blocklists, allowlists,
+// IP-to-ASN and geo tables — a sorted range array is designed to be faster and an
+// order of magnitude smaller than a prefix trie. That comparison was made at
+// design time against a path-compressed trie that is not part of this repository
+// and is not reproduced here; see docs/architecture.md for the trade-off.
 //
 // The package also includes a stdlib-only MaxMind DB reader (OpenMMDB). MMDB
 // lookups decode a map per query and are not allocation-free.
@@ -36,9 +35,9 @@
 package cidr
 
 import (
+	"encoding/binary"
 	"net/netip"
 	"slices"
-	"sort"
 	"strings"
 )
 
@@ -142,8 +141,8 @@ func mergeRanges(rs []iprange) []iprange {
 // Set is an immutable IPv4/IPv6 membership set. The zero Set is a valid empty
 // set. Safe for concurrent use once built.
 type Set struct {
-	v4 []iprange // sorted, disjoint
-	v6 []iprange
+	lo4, hi4 []uint32 // sorted, disjoint closed intervals [lo4[i], hi4[i]]
+	lo6, hi6 []u128
 }
 
 // Builder accumulates prefixes for a Set. Not safe for concurrent use.
@@ -185,7 +184,18 @@ func (b *Builder) AddPrefix(s string) error {
 // its storage: the Builder may be reused, and further Add and Freeze calls
 // never affect a Set already returned.
 func (b *Builder) Freeze() *Set {
-	return &Set{v4: mergeRanges(b.v4), v6: mergeRanges(b.v6)}
+	s := &Set{}
+	m4 := mergeRanges(b.v4)
+	s.lo4, s.hi4 = make([]uint32, len(m4)), make([]uint32, len(m4))
+	for i, r := range m4 {
+		s.lo4[i], s.hi4[i] = addr4(r.lo), addr4(r.hi)
+	}
+	m6 := mergeRanges(b.v6)
+	s.lo6, s.hi6 = make([]u128, len(m6)), make([]u128, len(m6))
+	for i, r := range m6 {
+		s.lo6[i], s.hi6[i] = u128From16(r.lo), u128From16(r.hi)
+	}
+	return s
 }
 
 // Contains reports whether a is covered by any prefix in the set. An IPv4-mapped
@@ -195,19 +205,53 @@ func (s *Set) Contains(a netip.Addr) bool {
 	if !a.IsValid() {
 		return false
 	}
-	a = a.Unmap().WithZone("")
-	rs := s.v4
-	if a.Is6() {
-		rs = s.v6
+	a = a.Unmap()
+	if a.Is4() {
+		x := addr4(a)
+		// First interval whose lo > x; the candidate is the one before it.
+		i := search4(s.lo4, x)
+		return i > 0 && x <= s.hi4[i-1] // x >= lo holds by construction
 	}
-	// First interval whose lo > a; the candidate is the one before it.
-	i := sort.Search(len(rs), func(i int) bool { return a.Less(rs[i].lo) })
-	if i == 0 {
-		return false
-	}
-	return !rs[i-1].hi.Less(a) // a <= hi (a >= lo holds by construction)
+	x := u128From16(a) // As16 ignores any zone
+	i := search6(s.lo6, x)
+	return i > 0 && !s.hi6[i-1].less(x)
 }
 
 // Len returns the number of disjoint intervals in the set (after merging), for
 // both families. It is not the number of prefixes added.
-func (s *Set) Len() int { return len(s.v4) + len(s.v6) }
+func (s *Set) Len() int { return len(s.lo4) + len(s.lo6) }
+
+// addr4 returns the IPv4 address a as an integer.
+func addr4(a netip.Addr) uint32 {
+	v := a.As4()
+	return binary.BigEndian.Uint32(v[:])
+}
+
+// search4 returns the index of the first element of xs greater than x (len(xs)
+// when none is): sort.Search without the closure call.
+func search4(xs []uint32, x uint32) int {
+	lo, hi := 0, len(xs)
+	for lo < hi {
+		m := int(uint(lo+hi) >> 1)
+		if x < xs[m] {
+			hi = m
+		} else {
+			lo = m + 1
+		}
+	}
+	return lo
+}
+
+// search6 is search4 for IPv6 addresses.
+func search6(xs []u128, x u128) int {
+	lo, hi := 0, len(xs)
+	for lo < hi {
+		m := int(uint(lo+hi) >> 1)
+		if x.less(xs[m]) {
+			hi = m
+		} else {
+			lo = m + 1
+		}
+	}
+	return lo
+}

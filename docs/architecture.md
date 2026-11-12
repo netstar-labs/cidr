@@ -11,11 +11,11 @@ CIDR prefix is a contiguous **range** of those integers — `1.1.1.0/24` is exac
 "is this address covered?" is interval membership.
 
 The whole library rests on one representation: **sorted arrays of address
-ranges, searched with binary search.** Addresses are `net/netip.Addr` values —
-comparable and fixed-size (24 bytes) — so a range array is one contiguous block
-of memory with no pointer-chasing on the query path and no per-query
-allocation. (Each `Addr` carries one shared, interned zone handle, so the array
-is flat but not pointer-free; see [Memory](#memory).)
+ranges, searched with binary search.** Builders work in `net/netip.Addr`
+values; Freeze converts the result to plain integers — `uint32` for IPv4, a pair
+of `uint64` words for IPv6 — so a range array is one contiguous, pointer-free
+block of memory with no pointer-chasing on the query path and no per-query
+allocation. (See [Memory](#memory).)
 
 IPv4 and IPv6 are kept in separate arrays within each structure; a query is
 routed to one by address family, then binary-searched.
@@ -92,12 +92,16 @@ Let `P` be the number of prefixes and `S ≤ 2P+1` the number of segments.
 | `Set` | `O(P log P)` sort + merge | `O(log P)` binary search |
 | `Table[V]` | `O((P+S) log P)` sweep | `O(log S)` binary search |
 
-Queries allocate nothing. Build allocates the arrays once.
+Queries allocate nothing. `Freeze` allocates the final arrays once, plus transient
+`net/netip` intermediates (the merged ranges or swept segments) that it converts
+and then drops.
 
 ## Memory
 
-A `Set` interval is two `netip.Addr` values; a `Table` segment is one `Addr`
-plus a 32-bit index. Both are flat, contiguous arrays — no per-node object, no
+A frozen `Set` interval is two integers (2×4 bytes for IPv4, 2×16 for IPv6); a
+frozen `Table` segment is one integer start plus a 32-bit value index (8 bytes
+for IPv4, 20 for IPv6), held in parallel arrays. Both are flat, contiguous
+arrays — no per-node object, no
 child pointers, no interface headers. In a design-time comparison this was **roughly 8–60× less
 memory than the equivalent path-compressed trie**, whose every node carries
 parent and child pointers, a mask, and an entry interface. The ratio grew
@@ -107,12 +111,14 @@ reproduced here, so treat the figures as the design rationale, not as a
 reproducible benchmark. (The `Set`/`Table` figures in [Benchmarks](#benchmarks)
 do reproduce: `go test -bench .`.)
 
-The arrays are flat and contiguous, but not pointer-free: every `netip.Addr`
-contains a `unique.Handle` for its IPv6 zone (a pointer to one shared, interned
-value). Persisting a set therefore means encoding its addresses (for example
-with `Addr.As16`) and decoding them on load, not dumping the memory — and for
-the sizes these sets typically reach, an in-memory rebuild from the source text
-is fast enough that persistence is rarely worth the complexity.
+The address arrays are flat, contiguous and pointer-free: plain `uint32` and
+`uint64` words that the garbage collector never scans. (A builder holds
+`netip.Addr` values, which carry a pointer to a shared, interned IPv6 zone, for
+as long as the caller keeps the builder; a `Table`'s value slice `[]V` is as
+pointer-free as `V` is.) The integer arrays could
+be written out directly, but for the sizes these sets typically reach, an
+in-memory rebuild from the source text is fast enough that persistence is rarely
+worth the complexity.
 
 ## Benchmarks
 
@@ -130,10 +136,9 @@ found the IPv4 range array about
 **2× faster** and allocation-free where the trie allocates once per query, with
 the gap widening as the set grew: the trie pointer-chases a node graph that falls
 out of cache, while the array stays contiguous and its cost grows only as
-`log N`. A specialised IPv4-only `uint32` range array (not shipped here, to keep
-one clean dual-family path) is faster still — roughly 3–4× the trie in the same
-design-time comparison, likewise not reproduced here — and is the
-option to reach for only if the lookup itself ever becomes a measured hot spot.
+`log N`. That comparison predates the integer layout: the frozen structures now
+store IPv4 as `uint32` and IPv6 as two `uint64` words, which roughly halved query
+time again over the `netip.Addr` arrays measured then.
 
 ## The trie trade-off — when a trie wins
 

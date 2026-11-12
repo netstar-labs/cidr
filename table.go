@@ -3,7 +3,6 @@ package cidr
 import (
 	"net/netip"
 	"slices"
-	"sort"
 )
 
 // Table is an immutable IPv4/IPv6 longest-prefix-match table returning a value V
@@ -12,13 +11,19 @@ import (
 // allocation. The zero Table is a valid empty table. Safe for concurrent use
 // once built.
 type Table[V any] struct {
-	v4   []segment // sorted, disjoint; vi<0 marks a gap (no covering prefix)
-	v6   []segment
+	// Segment i starts at st[i] and carries value index vi[i] up to the next
+	// start. The starts are sorted and distinct; vi < 0 marks a gap (no
+	// covering prefix).
+	st4  []uint32
+	vi4  []int32
+	st6  []u128
+	vi6  []int32
 	vals []V
 }
 
-// segment starts at `start` and carries the value index of the most-specific
-// prefix covering [start, next segment). A negative vi is a gap.
+// segment is the build-time form of a Table segment: it starts at `start` and
+// carries the value index of the most-specific prefix covering [start, next
+// segment). A negative vi is a gap. Freeze converts segments to integer arrays.
 type segment struct {
 	start netip.Addr
 	vi    int32
@@ -74,11 +79,18 @@ func (b *TableBuilder[V]) AddPrefix(s string, v V) error {
 
 // Freeze compiles the accumulated prefixes into an immutable Table.
 func (b *TableBuilder[V]) Freeze() *Table[V] {
-	return &Table[V]{
-		v4:   sweep(b.v4, 32),
-		v6:   sweep(b.v6, 128),
-		vals: b.vals,
+	t := &Table[V]{vals: b.vals}
+	s4 := sweep(b.v4, 32)
+	t.st4, t.vi4 = make([]uint32, len(s4)), make([]int32, len(s4))
+	for i, s := range s4 {
+		t.st4[i], t.vi4[i] = addr4(s.start), s.vi
 	}
+	s6 := sweep(b.v6, 128)
+	t.st6, t.vi6 = make([]u128, len(s6)), make([]int32, len(s6))
+	for i, s := range s6 {
+		t.st6[i], t.vi6[i] = u128From16(s.start), s.vi
+	}
+	return t
 }
 
 // dedup collapses exact-duplicate prefixes (same network and length), keeping
@@ -172,16 +184,22 @@ func (t *Table[V]) Lookup(a netip.Addr) (V, bool) {
 	if !a.IsValid() {
 		return zero, false
 	}
-	a = a.Unmap().WithZone("")
-	segs := t.v4
-	if a.Is6() {
-		segs = t.v6
+	a = a.Unmap()
+	var vi int32
+	if a.Is4() {
+		// Last segment whose start <= a.
+		i := search4(t.st4, addr4(a))
+		if i == 0 {
+			return zero, false
+		}
+		vi = t.vi4[i-1]
+	} else {
+		i := search6(t.st6, u128From16(a)) // As16 ignores any zone
+		if i == 0 {
+			return zero, false
+		}
+		vi = t.vi6[i-1]
 	}
-	i := sort.Search(len(segs), func(i int) bool { return a.Less(segs[i].start) })
-	if i == 0 {
-		return zero, false
-	}
-	vi := segs[i-1].vi
 	if vi < 0 {
 		return zero, false
 	}

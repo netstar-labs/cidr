@@ -56,7 +56,7 @@ func TestSetMergeAndDefault(t *testing.T) {
 	_ = b.AddPrefix("1.0.1.0/24") // adjacent -> should merge into one interval
 	_ = b.AddPrefix("1.0.0.128/25")
 	set := b.Freeze()
-	if n := len(set.v4); n != 1 {
+	if n := len(set.lo4); n != 1 {
 		t.Errorf("expected 1 merged interval, got %d", n)
 	}
 	for _, ip := range []string{"1.0.0.0", "1.0.0.255", "1.0.1.0", "1.0.1.255"} {
