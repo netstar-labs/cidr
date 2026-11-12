@@ -583,6 +583,7 @@ before `Freeze`.
 | Symbol | Purpose |
 |---|---|
 | `ParsePrefix(string) (netip.Prefix, error)` | parse a CIDR or bare address |
+| `LastAddr(netip.Prefix) netip.Addr` | last (all-host-bits-set) address of a prefix's masked range; host bits in the input are ignored, no IPv4-mapped folding |
 | `RangePrefixes(lo, hi netip.Addr) []netip.Prefix` | decompose a range into its minimal CIDR set |
 | `AppendRangePrefixes(dst, lo, hi) []netip.Prefix` | RangePrefixes into a reused buffer (hot loops) |
 | `ParseSpec(io.Reader) ([]SpecEntry, error)` | parse a `<cidr> [ASN] [org...]` stream |

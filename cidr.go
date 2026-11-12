@@ -80,10 +80,16 @@ func unmapPrefix(p netip.Prefix) netip.Prefix {
 	return p
 }
 
-// lastAddr returns the broadcast (all-host-bits-set) address of a prefix: the network
-// address OR the host mask (the low 32-bits/128-bits host portion). Reuses the range.go
-// u128 helpers rather than a second hand-rolled shift/loop.
-func lastAddr(p netip.Prefix) netip.Addr {
+// LastAddr returns the last address of p's masked range: the network address with
+// every host bit set (for IPv4 the broadcast address). The prefix is masked first,
+// so host bits set in p.Addr() are ignored: LastAddr(10.1.2.3/8) is 10.255.255.255.
+//
+// An IPv4 prefix yields an IPv4 address and an IPv6 prefix an IPv6 address. LastAddr
+// does no IPv4-mapped folding (Builder.Add does): the prefix ::ffff:10.0.0.0/104 is
+// an IPv6 prefix and yields the IPv6 address ::ffff:10.255.255.255, not 10.255.255.255.
+// For an invalid prefix (the zero Prefix, or Bits outside the family's width) the
+// result is unspecified and does not panic; check p.IsValid first.
+func LastAddr(p netip.Prefix) netip.Addr {
 	p = p.Masked()
 	a := p.Addr()
 	if a.Is4() {
@@ -149,7 +155,7 @@ func (b *Builder) Add(p netip.Prefix) {
 		return
 	}
 	p = unmapPrefix(p).Masked()
-	r := iprange{lo: p.Addr(), hi: lastAddr(p)}
+	r := iprange{lo: p.Addr(), hi: LastAddr(p)}
 	if p.Addr().Is4() {
 		b.v4 = append(b.v4, r)
 	} else {

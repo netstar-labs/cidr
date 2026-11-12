@@ -208,7 +208,7 @@ trees):
 
 | File | Purpose |
 |---|---|
-| [`cidr.go`](cidr.go) | Package doc; `ParsePrefix`; the `Set` membership type, its `Builder`, and the range-merge that fuses overlaps at `Freeze` |
+| [`cidr.go`](cidr.go) | Package doc; `ParsePrefix`, `LastAddr`; the `Set` membership type, its `Builder`, and the range-merge that fuses overlaps at `Freeze` |
 | [`table.go`](table.go) | `Table[V]` longest-prefix-match value table and `TableBuilder[V]`; the build-time line sweep that resolves nesting; `EncodeASN`/`DecodeASN` |
 | [`input.go`](input.go) | Text/JSON loaders — `ParseSpec`, `LoadSet`, `LoadASN`, `BuildASN`, `LoadFunc`, the `Refs` envelope (`ParseRefs`/`LoadRefs*`), and the `Info`/`SpecEntry` types |
 | [`range.go`](range.go) | Range ingest — `AddRange`, `RangePrefixes`/`AppendRangePrefixes`, and the `u128` range-to-CIDR arithmetic behind them |

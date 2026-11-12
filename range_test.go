@@ -21,7 +21,7 @@ func checkCover(t *testing.T, lo, hi netip.Addr, ps []netip.Prefix) {
 		if p.Addr() != cur {
 			t.Fatalf("piece %d starts at %v, want %v", i, p.Addr(), cur)
 		}
-		end := lastAddr(p)
+		end := LastAddr(p)
 		if i == len(ps)-1 {
 			if end != hi {
 				t.Fatalf("last piece ends at %v, want %v", end, hi)
@@ -120,5 +120,74 @@ func TestAddRangeInvalid(t *testing.T) {
 	b.AddRange(netip.MustParseAddr("10.0.0.0"), netip.MustParseAddr("::1"))      // mixed
 	if set := b.Freeze(); set.Len() != 0 {
 		t.Errorf("invalid ranges should add nothing, Len=%d", set.Len())
+	}
+}
+
+func TestLastAddr(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		// IPv4: every host-bit count at the byte boundaries and a partial byte.
+		{"0.0.0.0/0", "255.255.255.255"},
+		{"10.0.0.0/8", "10.255.255.255"},
+		{"192.168.0.0/16", "192.168.255.255"},
+		{"192.0.2.0/24", "192.0.2.255"},
+		{"192.0.2.0/25", "192.0.2.127"},
+		{"192.0.2.128/25", "192.0.2.255"},
+		{"203.0.113.0/31", "203.0.113.1"},
+		{"203.0.113.7/32", "203.0.113.7"},
+		{"255.255.255.255/32", "255.255.255.255"},
+		{"0.0.0.0/32", "0.0.0.0"},
+		// IPv6
+		{"::/0", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"},
+		{"2001:db8::/32", "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff"},
+		{"2001:db8::/64", "2001:db8::ffff:ffff:ffff:ffff"},
+		{"2001:db8::/119", "2001:db8::1ff"},
+		{"2001:db8::/120", "2001:db8::ff"},
+		{"2001:db8::/127", "2001:db8::1"},
+		{"2001:db8::/128", "2001:db8::"},
+		{"::/128", "::"},
+		{"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"},
+		{"8000::/1", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"},
+		{"::/1", "7fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"},
+		// Unmasked input: host bits in the address are ignored, not preserved.
+		{"10.1.2.3/8", "10.255.255.255"},
+		{"192.0.2.200/25", "192.0.2.255"},
+		{"192.0.2.99/25", "192.0.2.127"},
+		{"2001:db8:1:2:3:4:5:6/32", "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff"},
+		{"2001:db8::dead:beef/120", "2001:db8::dead:beff"},
+		// IPv4-mapped: LastAddr does not fold, so an IPv6 prefix stays IPv6.
+		{"::ffff:10.0.0.0/104", "::ffff:10.255.255.255"},
+		{"::ffff:10.0.0.0/120", "::ffff:10.0.0.255"},
+		{"::ffff:10.0.0.1/128", "::ffff:10.0.0.1"},
+		{"::ffff:10.1.2.3/112", "::ffff:10.1.255.255"},
+		// Shorter than /96 the prefix is plain IPv6: its range is masked as such.
+		{"::ffff:0.0.0.0/80", "::ffff:255.255.255.255"},
+		{"::ffff:0.0.0.0/64", "::ffff:ffff:ffff:ffff"},
+	} {
+		p := netip.MustParsePrefix(tc.in)
+		got := LastAddr(p)
+		if got.String() != tc.want {
+			t.Errorf("LastAddr(%s) = %s, want %s", tc.in, got, tc.want)
+		}
+		if got.Is4() != p.Addr().Is4() {
+			t.Errorf("LastAddr(%s) = %s changed address family", tc.in, got)
+		}
+		// Invariants: inside the range, the range's last address, masked-equal.
+		if !p.Contains(got) {
+			t.Errorf("LastAddr(%s) = %s lies outside the prefix", tc.in, got)
+		}
+		if next := got.Next(); next.IsValid() && p.Contains(next) {
+			t.Errorf("LastAddr(%s) = %s: %s is still inside the prefix", tc.in, got, next)
+		}
+	}
+
+	// Invalid prefixes: no panic. The value is unspecified; only the absence of
+	// a crash is part of the contract.
+	for _, p := range []netip.Prefix{
+		{},
+		netip.PrefixFrom(netip.MustParseAddr("1.2.3.4"), -1),
+		netip.PrefixFrom(netip.MustParseAddr("1.2.3.4"), 33),
+		netip.PrefixFrom(netip.MustParseAddr("::1"), 129),
+	} {
+		_ = LastAddr(p)
 	}
 }

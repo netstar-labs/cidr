@@ -151,29 +151,6 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-func TestLastV6(t *testing.T) {
-	for _, tc := range []struct{ in, want string }{
-		{"2001:db8::/128", "2001:db8::"},
-		{"2001:db8::/127", "2001:db8::1"},
-		{"2001:db8::/120", "2001:db8::ff"},
-		{"2001:db8::/119", "2001:db8::1ff"},
-		{"2001:db8::/32", "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff"},
-		{"::/0", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"},
-	} {
-		if got := lastV6(netip.MustParsePrefix(tc.in)); got.String() != tc.want {
-			t.Errorf("lastV6(%s) = %s, want %s", tc.in, got, tc.want)
-		}
-	}
-}
-
-func TestHostMask4(t *testing.T) {
-	for bits, want := range map[int]uint32{0: 0xffffffff, 1: 0x7fffffff, 24: 0xff, 31: 1, 32: 0} {
-		if got := hostMask4(bits); got != want {
-			t.Errorf("hostMask4(%d) = %#x, want %#x", bits, got, want)
-		}
-	}
-}
-
 func TestAppendV4(t *testing.T) {
 	// Formatting must match netip across the octet-width boundaries (1, 2 and
 	// 3 digits) that the hand-rolled itoa branches on.
