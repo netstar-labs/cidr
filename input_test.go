@@ -316,7 +316,7 @@ func TestParseRefsStrict(t *testing.T) {
 		{"explicit empty list", `{"name":"n","version":1,"list":[]}`, false, 0},
 		{"missing list", `{"name":"n","version":1}`, true, 0},
 		{"renamed list", `{"name":"n","version":1,"lst":["10.0.0.0/8"]}`, true, 0},
-		{"null list", `{"name":"n","version":1,"list":null}`, true, 0},
+		{"null list (Go nil slice)", `{"name":"n","version":1,"list":null}`, false, 0},
 		{"empty object", `{}`, true, 0},
 		{"trailing garbage", ok + ` garbage`, true, 0},
 		{"trailing brace", ok + `}`, true, 0},

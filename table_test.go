@@ -178,7 +178,8 @@ func TestTableDefaultRoute(t *testing.T) {
 			{"2600::1", 0, false}, {"11.0.0.0", 0, false},
 		}},
 	} {
-		// add		// the order-independence of the winner choice too
+		// map iteration randomises the add order, which also exercises the
+		// order-independence of the winner choice
 		b := NewTableBuilder[int]()
 		for p, v := range tc.prefixes {
 			if err := b.AddPrefix(p, v); err != nil {

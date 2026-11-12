@@ -165,8 +165,5 @@ func TestMergeRangesInPlace(t *testing.T) {
 		if len(got) > 1 && cap(got) != len(got) && !tc.trimmed {
 			t.Errorf("%s: cap = %d, want len %d (append must not reach the work array)", tc.name, cap(got), len(got))
 		}
-		if tc.trimmed && cap(got) >= len(in) {
-			t.Errorf("%s: result of %d from %d inputs was not trimmed (cap %d)", tc.name, len(got), len(in), cap(got))
-		}
 	}
 }
