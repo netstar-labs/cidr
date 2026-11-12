@@ -92,7 +92,9 @@ Let `P` be the number of prefixes and `S ≤ 2P+1` the number of segments.
 | `Set` | `O(P log P)` sort + merge | `O(log P)` binary search |
 | `Table[V]` | `O((P+S) log P)` sweep | `O(log S)` binary search |
 
-Queries allocate nothing. Build allocates the arrays once.
+Queries allocate nothing. `Freeze` allocates the final arrays once, plus transient
+`net/netip` intermediates (the merged ranges or swept segments) that it converts
+and then drops.
 
 ## Memory
 
@@ -109,10 +111,11 @@ reproduced here, so treat the figures as the design rationale, not as a
 reproducible benchmark. (The `Set`/`Table` figures in [Benchmarks](#benchmarks)
 do reproduce: `go test -bench .`.)
 
-The arrays are flat, contiguous and pointer-free: plain `uint32` and `uint64`
-words that the garbage collector never scans. (Builders still hold `netip.Addr`
-values, which carry a pointer to a shared, interned IPv6 zone, but those are
-transient and dropped once Freeze has converted them.) The integer arrays could
+The address arrays are flat, contiguous and pointer-free: plain `uint32` and
+`uint64` words that the garbage collector never scans. (A builder holds
+`netip.Addr` values, which carry a pointer to a shared, interned IPv6 zone, for
+as long as the caller keeps the builder; a `Table`'s value slice `[]V` is as
+pointer-free as `V` is.) The integer arrays could
 be written out directly, but for the sizes these sets typically reach, an
 in-memory rebuild from the source text is fast enough that persistence is rarely
 worth the complexity.
@@ -133,10 +136,9 @@ found the IPv4 range array about
 **2× faster** and allocation-free where the trie allocates once per query, with
 the gap widening as the set grew: the trie pointer-chases a node graph that falls
 out of cache, while the array stays contiguous and its cost grows only as
-`log N`. A specialised IPv4-only `uint32` range array (not shipped here, to keep
-one clean dual-family path) is faster still — roughly 3–4× the trie in the same
-design-time comparison, likewise not reproduced here — and is the
-option to reach for only if the lookup itself ever becomes a measured hot spot.
+`log N`. That comparison predates the integer layout: the frozen structures now
+store IPv4 as `uint32` and IPv6 as two `uint64` words, which roughly halved query
+time again over the `netip.Addr` arrays measured then.
 
 ## The trie trade-off — when a trie wins
 

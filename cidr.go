@@ -16,11 +16,10 @@
 // query path, no interface dispatch, and no pointers in the address arrays. The
 // builders work in net/netip addresses; Freeze converts. For the static,
 // build-once-query-many workloads this package targets — blocklists, allowlists,
-// IP-to-ASN and geo tables — a
-// sorted range array is designed to be faster and an order of magnitude smaller
-// than a prefix trie. That comparison was made at design time against a
-// path-compressed trie that is not part of this repository and is not
-// reproduced here; see docs/architecture.md for the trade-off.
+// IP-to-ASN and geo tables — a sorted range array is designed to be faster and an
+// order of magnitude smaller than a prefix trie. That comparison was made at
+// design time against a path-compressed trie that is not part of this repository
+// and is not reproduced here; see docs/architecture.md for the trade-off.
 //
 // The package also includes a stdlib-only MaxMind DB reader (OpenMMDB). MMDB
 // lookups decode a map per query and are not allocation-free.
