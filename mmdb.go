@@ -33,6 +33,7 @@ type MMDB struct {
 	nodeSize   uint // bytes per node = recordSize*2/8
 	treeSize   uint // bytes
 	dataStart  int  // treeSize + 16; pointer base for the data section
+	dataLen    int  // bytes in the data section (sizes the per-Lookup decode budget)
 	metadata   map[string]any
 }
 
@@ -52,7 +53,8 @@ func OpenMMDBBytes(data []byte) (*MMDB, error) {
 	if idx < 0 {
 		return nil, errors.New("cidr: mmdb: metadata marker not found (not a MaxMind DB)")
 	}
-	meta, _, err := decodeMMDB(data[idx+len(metaMarker):], 0, 0, 0)
+	metaBuf := data[idx+len(metaMarker):]
+	meta, _, err := decodeMMDB(metaBuf, 0, 0, 0, newBudget(len(metaBuf)))
 	if err != nil {
 		return nil, fmt.Errorf("cidr: mmdb metadata: %w", err)
 	}
@@ -81,6 +83,7 @@ func OpenMMDBBytes(data []byte) (*MMDB, error) {
 		nodeSize:   nodeSize,
 		treeSize:   treeSize,
 		dataStart:  int(treeSize) + 16,
+		dataLen:    idx - int(treeSize) - 16,
 		metadata:   mm,
 	}, nil
 }
@@ -96,7 +99,9 @@ func (m *MMDB) Close() error { return nil }
 
 // Lookup returns the record for ip as a decoded map (the shape depends on the
 // database's schema: ASN, country, or any custom fields the producer packed).
-// ok is false when ip has no record.
+// ok is false when ip has no record. A record that is not a map (legal in the
+// format, though no cidr writer produces one) is reported as record == nil with
+// ok == true: the address has a record, but it is not representable as a map.
 func (m *MMDB) Lookup(ip net.IP) (record map[string]any, ok bool, err error) {
 	v, found, err := m.lookupValue(ip)
 	if err != nil || !found {
@@ -125,13 +130,17 @@ func (m *MMDB) lookupValue(ip net.IP) (any, bool, error) {
 		node = rec
 	}
 	switch {
-	case node == m.nodeCount:
-		return nil, false, nil // the empty record: no data
-	case node < m.nodeCount:
-		return nil, false, nil // ran out of address bits inside the tree
+	case node <= m.nodeCount:
+		// node == nodeCount is the empty record (no data); node < nodeCount means the
+		// address ran out of bits inside the tree. Either way: no record.
+		return nil, false, nil
+	case node-m.nodeCount < 16:
+		// A data pointer is (node - nodeCount) = 16 + offset into the data section;
+		// values 1..15 would point into the 16-byte zero separator, which is not data.
+		return nil, false, errors.New("cidr: mmdb: record points into the data-section separator")
 	}
 	off := int(m.treeSize) + int(node-m.nodeCount) // == dataStart + (node - nodeCount - 16)
-	v, _, err := decodeMMDB(m.data, off, m.dataStart, 0)
+	v, _, err := decodeMMDB(m.data, off, m.dataStart, 0, newBudget(m.dataLen))
 	if err != nil {
 		return nil, false, err
 	}
@@ -188,27 +197,75 @@ func (m *MMDB) record(node uint, right bool) (uint, error) {
 // overflows (an unrecoverable fatal error). Real databases nest only a few levels.
 const maxMMDBDepth = 512
 
+// A decode's total work and output are bounded by a budget, because recursion depth alone
+// is not enough: a data DAG whose every level is an array of two pointers to the level
+// below (~6 bytes per level) decodes in 2^levels time and memory, and N pointers to one
+// large string copy that string N times. Every decoded value (a pointer follow included)
+// costs valueCost units, and a string, bytes or uint128 value also costs its payload
+// bytes, so the budget bounds both the number of values built and the bytes copied. A
+// budget is per top-level decode (one for the metadata, one per Lookup) and threaded
+// through decodeMMDB explicitly — never package state, since lookups run concurrently.
+const (
+	valueCost     = 16      // fixed units charged per decoded value
+	elemCost      = 16      // extra units per pre-sized array slot
+	mapEntryCost  = 48      // extra units per pre-sized map entry
+	minDecodeCost = 1 << 20 // floor of a budget, so tiny sections still decode
+	maxDecodeCost = 1 << 25 // ceiling of a budget: admits the largest single value the format allows
+	maxPresize    = 4096    // cap on the entries a container pre-allocates
+)
+
+var errBudget = errors.New("cidr: mmdb: decode budget exceeded")
+
+// budget is the remaining work/output allowance of one top-level decode.
+type budget struct{ left int }
+
+// newBudget sizes a budget from the section being decoded: 4*sectionLen, held between
+// a floor (1<<20, so tiny sections with internal repetition still decode) and a ceiling
+// (1<<25, so a huge hostile file cannot buy a proportionally huge decode per Lookup).
+// The ceiling still admits the largest single value the format can express (a string
+// of 65821+2^24-1 bytes), and leaves wide headroom: the costliest record in a real
+// 1.4 GB DB-IP database used under 10,000 units.
+func newBudget(sectionLen int) *budget {
+	return &budget{left: min(maxDecodeCost, max(minDecodeCost, 4*sectionLen))}
+}
+
+// charge spends n units, failing once the allowance is exhausted.
+func (b *budget) charge(n int) error {
+	b.left -= n
+	if b.left < 0 {
+		return errBudget
+	}
+	return nil
+}
+
 // decodeMMDB decodes one value from buf at off. ptrBase is the offset pointers are
 // relative to (the data-section start for tree data; 0 for the self-contained metadata
 // section). depth guards against runaway pointer/container recursion on malformed input.
 // Returns the value and the offset just past it. All lengths read from buf are treated as
 // untrusted: bounds are compared as (len(buf)-off) so off+size cannot overflow, and a
-// container's element count cannot exceed the bytes that remain.
-func decodeMMDB(buf []byte, off, ptrBase, depth int) (any, int, error) {
+// container's element count cannot exceed the bytes that remain. bud bounds the total work
+// and output of the whole top-level decode (see budget); it is shared down the recursion.
+func decodeMMDB(buf []byte, off, ptrBase, depth int, bud *budget) (any, int, error) {
 	if depth > maxMMDBDepth {
 		return nil, 0, errors.New("cidr: mmdb: max pointer/nesting depth exceeded")
 	}
 	if off < 0 || off >= len(buf) {
 		return nil, 0, errors.New("cidr: mmdb: offset out of range")
 	}
+	if err := bud.charge(valueCost); err != nil {
+		return nil, 0, err
+	}
 	ctrl := buf[off]
 	off++
-	typ := ctrl >> 5
-	if typ == 0 { // extended type
+	typ := int(ctrl >> 5)
+	if typ == 0 { // extended type: 7 + the next byte, which must land in 8..15
 		if off >= len(buf) {
 			return nil, 0, errors.New("cidr: mmdb: truncated extended type")
 		}
-		typ = buf[off] + 7
+		typ = int(buf[off]) + 7 // an int: a byte would wrap 0xFB to string and 0xFA to pointer
+		if typ < 8 || typ > 15 {
+			return nil, 0, fmt.Errorf("cidr: mmdb: invalid extended type %d", typ)
+		}
 		off++
 	}
 
@@ -241,7 +298,16 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int) (any, int, error) {
 			ptr = int(binary.BigEndian.Uint32(buf[off : off+4]))
 			off += 4
 		}
-		v, _, err := decodeMMDB(buf, ptrBase+ptr, ptrBase, depth+1)
+		// The target must be inside buf, and must not itself be a pointer: the format
+		// forbids a pointer to a pointer, and allowing it lets a chain of pointers
+		// stand in for a loop.
+		if ptr < 0 || ptr >= len(buf)-ptrBase {
+			return nil, 0, errors.New("cidr: mmdb: offset out of range")
+		}
+		if buf[ptrBase+ptr]>>5 == 1 {
+			return nil, 0, errors.New("cidr: mmdb: pointer to a pointer")
+		}
+		v, _, err := decodeMMDB(buf, ptrBase+ptr, ptrBase, depth+1, bud)
 		return v, off, err
 	}
 
@@ -274,6 +340,9 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int) (any, int, error) {
 		if size > avail {
 			return nil, 0, errTrunc
 		}
+		if err := bud.charge(size); err != nil {
+			return nil, 0, err
+		}
 		return string(buf[off : off+size]), off + size, nil
 	case 3: // double (IEEE-754 64-bit)
 		if avail < 8 {
@@ -283,6 +352,9 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int) (any, int, error) {
 	case 4: // bytes
 		if size > avail {
 			return nil, 0, errTrunc
+		}
+		if err := bud.charge(size); err != nil {
+			return nil, 0, err
 		}
 		return append([]byte(nil), buf[off:off+size]...), off + size, nil
 	case 5, 6, 9: // uint16 / uint32 / uint64
@@ -294,10 +366,14 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int) (any, int, error) {
 		if size > avail { // each entry needs >= 1 byte: reject an amplified count
 			return nil, 0, errTrunc
 		}
-		m := make(map[string]any, min(size, 4096)) // pre-size capped; grows to the real count
+		presize := min(size, maxPresize) // pre-size capped; grows to the real count
+		if err := bud.charge(presize * mapEntryCost); err != nil {
+			return nil, 0, err
+		}
+		m := make(map[string]any, presize)
 		o := off
 		for i := 0; i < size; i++ {
-			k, no, err := decodeMMDB(buf, o, ptrBase, depth+1)
+			k, no, err := decodeMMDB(buf, o, ptrBase, depth+1, bud)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -305,7 +381,7 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int) (any, int, error) {
 			if !ok {
 				return nil, 0, errors.New("cidr: mmdb: non-string map key")
 			}
-			v, no2, err := decodeMMDB(buf, no, ptrBase, depth+1)
+			v, no2, err := decodeMMDB(buf, no, ptrBase, depth+1, bud)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -322,15 +398,22 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int) (any, int, error) {
 		if size > 16 || size > avail {
 			return nil, 0, errTrunc
 		}
+		if err := bud.charge(size); err != nil {
+			return nil, 0, err
+		}
 		return new(big.Int).SetBytes(buf[off : off+size]), off + size, nil
 	case 11: // array
 		if size > avail { // each element needs >= 1 byte: reject an amplified count
 			return nil, 0, errTrunc
 		}
-		arr := make([]any, 0, min(size, 4096)) // pre-size capped; grows to the real count
+		presize := min(size, maxPresize) // pre-size capped; grows to the real count
+		if err := bud.charge(presize * elemCost); err != nil {
+			return nil, 0, err
+		}
+		arr := make([]any, 0, presize)
 		o := off
 		for i := 0; i < size; i++ {
-			v, no, err := decodeMMDB(buf, o, ptrBase, depth+1)
+			v, no, err := decodeMMDB(buf, o, ptrBase, depth+1, bud)
 			if err != nil {
 				return nil, 0, err
 			}
