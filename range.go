@@ -82,7 +82,8 @@ func AppendRangePrefixes(dst []netip.Prefix, lo, hi netip.Addr) []netip.Prefix {
 
 		// blockLast = a + 2^k - 1, computed as a | (low-k-bits) to avoid overflow.
 		// blockLast never exceeds b: k <= alignK (a is aligned to 2^k) and
-		// k <= fitK (2^k <= b-a+1).
+		// k <= fitK (2^k <= b-a+1). This relies on validRange having rejected
+		// lo > hi and mixed families above; a caller that skipped it could loop forever.
 		blockLast := a.or(lowMask(k))
 		if blockLast == b {
 			break
