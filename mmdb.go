@@ -62,6 +62,14 @@ func OpenMMDBBytes(data []byte) (*MMDB, error) {
 	if !ok {
 		return nil, errors.New("cidr: mmdb: metadata is not a map")
 	}
+	// Only major version 2 of the format is understood (a missing key is as invalid as a
+	// different value), and a database indexes either IPv4 or IPv6 addresses.
+	if uintOf(mm["binary_format_major_version"]) != 2 {
+		return nil, fmt.Errorf("cidr: mmdb: unsupported binary_format_major_version %v (want 2)", mm["binary_format_major_version"])
+	}
+	if v := uintOf(mm["ip_version"]); v != 4 && v != 6 {
+		return nil, fmt.Errorf("cidr: mmdb: unsupported ip_version %v (want 4 or 6)", mm["ip_version"])
+	}
 	recordSize := uintOf(mm["record_size"])
 	if recordSize != 24 && recordSize != 28 && recordSize != 32 {
 		return nil, fmt.Errorf("cidr: mmdb: unsupported record_size %d", recordSize)

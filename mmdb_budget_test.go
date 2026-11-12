@@ -77,9 +77,11 @@ func encMapOf(kv ...[]byte) []byte {
 	return append(hdr(7, len(kv)/2), bytes.Join(kv, nil)...)
 }
 
-// metaKV is the metadata every database needs: a 1-node IPv4 tree with 24-bit records.
+// metaKV is the metadata every database needs: format version 2 and a 1-node IPv4 tree with
+// 24-bit records.
 func metaKV(extra ...[]byte) []byte {
 	kv := [][]byte{
+		encStr("binary_format_major_version"), encUint(5, 2),
 		encStr("node_count"), encUint(6, 1),
 		encStr("record_size"), encUint(5, 24),
 		encStr("ip_version"), encUint(5, 4),

@@ -124,3 +124,56 @@ func TestMMDBBudgetLegitimateData(t *testing.T) {
 		}
 	}
 }
+
+// OpenMMDBBytes accepts only binary format major version 2 and ip_version 4 or 6; a
+// missing key is invalid, not zero-and-ignored.
+func TestMMDBOpenRejectsBadVersions(t *testing.T) {
+	// meta builds metadata from the keys given (value 0 means: omit the key).
+	meta := func(major, ipv uint64) []byte {
+		kv := [][]byte{
+			encStr("node_count"), encUint(6, 1),
+			encStr("record_size"), encUint(5, 24),
+		}
+		if major != 0 {
+			kv = append(kv, encStr("binary_format_major_version"), encUint(5, major))
+		}
+		if ipv != 0 {
+			kv = append(kv, encStr("ip_version"), encUint(5, ipv))
+		}
+		return encMapOf(kv...)
+	}
+	cases := []struct {
+		name         string
+		major, ipVer uint64
+		ok           bool
+	}{
+		{"v2 ip4", 2, 4, true},
+		{"v2 ip6", 2, 6, true},
+		{"major missing", 0, 4, false},
+		{"major 1", 1, 4, false},
+		{"major 3", 3, 4, false},
+		{"major 258", 258, 4, false},
+		{"ip_version missing", 2, 0, false},
+		{"ip_version 5", 2, 5, false},
+		{"ip_version 7", 2, 7, false},
+		{"ip_version 260", 2, 260, false}, // 260 & 0xff == 4: must not be truncated into range
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := OpenMMDBBytes(buildDB(0, nil, meta(c.major, c.ipVer)))
+			if c.ok && err != nil {
+				t.Fatalf("OpenMMDBBytes: %v", err)
+			}
+			if !c.ok && err == nil {
+				t.Fatal("OpenMMDBBytes: want an error")
+			}
+		})
+	}
+	// a non-numeric version (a string) is invalid too
+	bad := buildDB(0, nil, encMapOf(
+		encStr("node_count"), encUint(6, 1), encStr("record_size"), encUint(5, 24),
+		encStr("binary_format_major_version"), encStr("2"), encStr("ip_version"), encUint(5, 4)))
+	if _, err := OpenMMDBBytes(bad); err == nil {
+		t.Error("string binary_format_major_version: want an error")
+	}
+}
