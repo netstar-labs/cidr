@@ -87,8 +87,8 @@ func unmapPrefix(p netip.Prefix) netip.Prefix {
 // An IPv4 prefix yields an IPv4 address and an IPv6 prefix an IPv6 address. LastAddr
 // does no IPv4-mapped folding (Builder.Add does): the prefix ::ffff:10.0.0.0/104 is
 // an IPv6 prefix and yields the IPv6 address ::ffff:10.255.255.255, not 10.255.255.255.
-// Zones are dropped. For an invalid prefix (the zero Prefix, or Bits outside the
-// family's width) the result is unspecified and does not panic; check p.IsValid first.
+// For an invalid prefix (the zero Prefix, or Bits outside the family's width) the
+// result is unspecified and does not panic; check p.IsValid first.
 func LastAddr(p netip.Prefix) netip.Addr {
 	p = p.Masked()
 	a := p.Addr()
