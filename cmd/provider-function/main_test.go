@@ -26,7 +26,7 @@ func convert(t *testing.T, sources ...src) (string, stats, []conflict) {
 			t.Fatalf("unknown provider %q", s.provider)
 		}
 		st.perSource[s.provider] += 0
-		if err := p.parse(strings.NewReader(s.body), collect(s.provider, &st, table, &conflicts)); err != nil {
+		if err := p.parse(strings.NewReader(s.body), collect(s.provider, &tally{}, &st, table, &conflicts)); err != nil {
 			t.Fatalf("%s: %v", s.provider, err)
 		}
 	}
@@ -391,10 +391,11 @@ func TestMalformedRowsAreCounted(t *testing.T) {
 // worst reproduced failure into a loud one. Valid JSON with renamed fields (an
 // HTTP 200 from a feed that changed shape) previously yielded exit 0 and a
 // zero-byte file — which, under `build/provider-function --generator`, truncates
-// the published spec on a "successful" timer run.
+// the published spec on a "successful" timer run. The guard is per feed (it was
+// per provider, which let a dead second file hide behind a healthy first one).
 func TestAttemptedSourceProducingNothingIsAnError(t *testing.T) {
-	st := stats{perSource: map[string]int{"aws": 0}, malformed: map[string]int{"aws": 3}}
-	err := checkSourcesProduced([]source{{provider: "aws"}}, &st)
+	srcs := []source{{provider: "aws", name: "aws.json", tally: tally{malformed: 3}}}
+	err := checkFeedsProduced(srcs)
 	if err == nil {
 		t.Fatal("a source that produced nothing was accepted; want an error")
 	}
@@ -402,8 +403,8 @@ func TestAttemptedSourceProducingNothingIsAnError(t *testing.T) {
 		t.Errorf("error %q does not name the provider that failed", err)
 	}
 
-	st.perSource["aws"] = 1
-	if err := checkSourcesProduced([]source{{provider: "aws"}}, &st); err != nil {
+	srcs[0].rows = 1
+	if err := checkFeedsProduced(srcs); err != nil {
 		t.Errorf("a source that produced rows was rejected: %v", err)
 	}
 }
@@ -488,7 +489,7 @@ func FuzzParsers(f *testing.F) {
 		var conflicts []conflict
 
 		// parse must not panic on any input; a decode error is a legitimate outcome.
-		if err := p.parse(strings.NewReader(body), collect(providerName, &st, table, &conflicts)); err != nil {
+		if err := p.parse(strings.NewReader(body), collect(providerName, &tally{}, &st, table, &conflicts)); err != nil {
 			return
 		}
 
@@ -552,7 +553,7 @@ func BenchmarkBuild(b *testing.B) {
 		table := map[netip.Prefix]entry{}
 		st := stats{perSource: map[string]int{}, malformed: map[string]int{}}
 		var conflicts []conflict
-		if err := parseAWS(strings.NewReader(doc), collect("aws", &st, table, &conflicts)); err != nil {
+		if err := parseAWS(strings.NewReader(doc), collect("aws", &tally{}, &st, table, &conflicts)); err != nil {
 			b.Fatal(err)
 		}
 		var out strings.Builder
