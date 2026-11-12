@@ -34,10 +34,12 @@ import (
 // Output is a buffered, atomically published output file, or stdout.
 // The zero value is not usable; get one from [Create].
 type Output struct {
-	bw   *bufio.Writer
-	f    *os.File // temp file; nil when writing to stdout
-	path string   // final path; "" for stdout
-	done bool
+	bw     *bufio.Writer
+	f      *os.File // temp file; nil when writing to stdout or a special file
+	direct *os.File // an existing non-regular target written through (e.g. /dev/null)
+	path   string   // final path (symlinks resolved); "" for stdout
+	name   string   // path as given, for messages
+	done   bool
 }
 
 // Create opens an output for path. The empty path and "-" mean stdout: no temp
@@ -45,10 +47,24 @@ type Output struct {
 // ".<base>.tmp-<random>" is created in the same directory as path (same
 // filesystem, so the final rename is atomic; leading dot and ".tmp-" infix so a
 // consumer glob such as *.cidr cannot match it). The target is not touched
-// until Commit.
+// until Commit. A symlinked path is resolved first, so Commit replaces the file
+// the link points at and the link survives. An existing target that is not a
+// regular file (a device such as /dev/null, a FIFO) is written through
+// directly, since a rename would replace it rather than write to it.
 func Create(path string) (*Output, error) {
 	if path == "" || path == "-" {
 		return &Output{bw: bufio.NewWriter(os.Stdout)}, nil
+	}
+	name := path
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	}
+	if fi, err := os.Stat(path); err == nil && !fi.Mode().IsRegular() {
+		d, err := os.OpenFile(path, os.O_WRONLY, 0)
+		if err != nil {
+			return nil, err
+		}
+		return &Output{bw: bufio.NewWriter(d), direct: d, path: path, name: name}, nil
 	}
 	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
 	if err != nil {
@@ -65,7 +81,7 @@ func Create(path string) (*Output, error) {
 		os.Remove(f.Name())
 		return nil, err
 	}
-	return &Output{bw: bufio.NewWriter(f), f: f, path: path}, nil
+	return &Output{bw: bufio.NewWriter(f), f: f, path: path, name: name}, nil
 }
 
 // Write implements io.Writer.
@@ -73,10 +89,10 @@ func (o *Output) Write(p []byte) (int, error) { return o.bw.Write(p) }
 
 // Name describes the destination for messages: the final path, or "stdout".
 func (o *Output) Name() string {
-	if o.f == nil {
+	if o.f == nil && o.direct == nil {
 		return "stdout"
 	}
-	return o.path
+	return o.name
 }
 
 // Commit publishes the output: flush, fsync, close, rename over the target, then
@@ -92,6 +108,9 @@ func (o *Output) Commit() error {
 	if err := o.bw.Flush(); err != nil {
 		o.discard()
 		return err
+	}
+	if o.direct != nil {
+		return o.direct.Close()
 	}
 	if o.f == nil {
 		return nil
@@ -127,6 +146,9 @@ func (o *Output) Abort() {
 }
 
 func (o *Output) discard() {
+	if o.direct != nil {
+		o.direct.Close()
+	}
 	if o.f != nil {
 		o.f.Close()
 		os.Remove(o.f.Name())
@@ -138,7 +160,10 @@ func (o *Output) discard() {
 // sees no bytes for idle fails with an error saying so, and the request is
 // cancelled. The idle clock runs only while a Read is waiting on the network, so
 // a slow consumer is never penalised. The proxy environment is honoured. A
-// non-200 status is an error.
+// non-200 status is an error. An idle of zero or less disables the idle check
+// (as a zero -timeout meant "no timeout" before this package existed).
+// Keep-alives are off: each Fetch is a one-shot download, and pooled idle
+// connections would otherwise stay open until the process exits.
 func Fetch(url, userAgent string, dial, idle time.Duration) (io.ReadCloser, error) {
 	client := &http.Client{Transport: &http.Transport{
 		// A hand-built Transport has a nil Proxy, which silently ignores
@@ -147,6 +172,7 @@ func Fetch(url, userAgent string, dial, idle time.Duration) (io.ReadCloser, erro
 		DialContext:           (&net.Dialer{Timeout: dial}).DialContext,
 		TLSHandshakeTimeout:   dial,
 		ResponseHeaderTimeout: dial,
+		DisableKeepAlives:     true,
 	}}
 	ctx, cancel := context.WithCancel(context.Background())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -178,6 +204,9 @@ type idleBody struct {
 }
 
 func (b *idleBody) Read(p []byte) (int, error) {
+	if b.idle <= 0 {
+		return b.rc.Read(p)
+	}
 	t := time.AfterFunc(b.idle, func() {
 		b.fired.Store(true)
 		b.cancel()
