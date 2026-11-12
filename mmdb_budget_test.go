@@ -418,6 +418,13 @@ func TestMMDBBudgetBytesPerUnit(t *testing.T) {
 		func() shape { s := withTarget(append(hdr(4, 1), 'b')); s.name = "ptrs to 1-byte bytes"; return s }(),
 		func() shape { s := withTarget(append(hdr(10, 1), 7)); s.name = "ptrs to uint128"; return s }(),
 		func() shape {
+			s := withTarget(append(hdr(10, 16), bytes.Repeat([]byte{0xff}, 16)...))
+			s.name = "ptrs to 16-byte uint128"
+			return s
+		}(),
+		{"inline 9-byte uint128s", inlineElems(append(hdr(10, 9), bytes.Repeat([]byte{0xff}, 9)...)), 0},
+		{"inline 16-byte uint128s", inlineElems(append(hdr(10, 16), bytes.Repeat([]byte{0xff}, 16)...)), 0},
+		func() shape {
 			s := withTarget(append(hdr(7, 1), append(encStr("k"), 0x40)...))
 			s.name = "ptrs to 1-entry map"
 			return s

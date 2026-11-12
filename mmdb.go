@@ -285,7 +285,8 @@ const maxMMDBDepth = 512
 //
 // A unit buys at most about 1.3 bytes of heap (measured by TestMMDBBudgetBytesPerUnit over
 // the worst shapes: 0.15 B/unit for pointers to empty maps up to 1.26 B/unit for empty
-// arrays, 0.5–1.15 for pointers to small boxed scalars), so one decode allocates on the
+// arrays, 0.5–1.15 for pointers to small boxed scalars, up to 1.08 for 9–16-byte uint128
+// values, which are charged bigIntCost for their *big.Int), so one decode allocates on the
 // order of its budget in bytes: at most ~42 MB at the maxDecodeCost ceiling, ~4*sectionLen
 // bytes below it. That is per Lookup: concurrent lookups multiply it by the number in flight.
 const (
@@ -293,6 +294,7 @@ const (
 	elemCost      = 16               // extra units per array slot (an interface: 16 B)
 	mapEntryCost  = 48               // extra units per map entry (a string key and an interface, plus table overhead)
 	mapBaseCost   = 8 * mapEntryCost // extra units per map: about Go's smallest map allocation
+	bigIntCost    = 48               // extra units per uint128: a *big.Int and its word slice
 	minDecodeCost = 1 << 20          // floor of a budget, so tiny sections still decode
 	maxDecodeCost = 1 << 25          // ceiling of a budget: admits the largest single value the format allows
 )
@@ -513,7 +515,7 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int, bud *budget) (any, int, err
 		if size > avail {
 			return nil, 0, errTrunc
 		}
-		if err := bud.charge(size); err != nil {
+		if err := bud.charge(bigIntCost + size); err != nil {
 			return nil, 0, err
 		}
 		return new(big.Int).SetBytes(buf[off : off+size]), off + size, nil
