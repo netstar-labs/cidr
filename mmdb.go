@@ -139,7 +139,10 @@ func (m *MMDB) walkZeros(n int) (node uint, ok bool) {
 }
 
 // Metadata returns the decoded metadata map (node_count, record_size,
-// ip_version, database_type, description, build_epoch, …).
+// ip_version, database_type, description, build_epoch, …). The map (and the nested
+// maps and slices inside it) is the database's own, not a copy: it is shared by every
+// caller and by concurrent lookups, so it must be treated as read-only. Writing to it
+// is a data race and corrupts what later callers see; copy it first if you need to change it.
 func (m *MMDB) Metadata() map[string]any { return m.metadata }
 
 // Close is a no-op: the database is a plain in-memory buffer, reclaimed by GC once the
