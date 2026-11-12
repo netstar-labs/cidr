@@ -83,13 +83,17 @@ func plusOneLess(hi, x netip.Addr) bool {
 }
 
 // mergeRanges sorts intervals by lo and coalesces overlapping or adjacent ones.
+// It never modifies rs, and the result shares no memory with it: the merge runs
+// on a scratch copy and the result is copied out, sized to the merged length
+// (up to allocator rounding) rather than pinning the possibly much larger input.
 func mergeRanges(rs []iprange) []iprange {
 	if len(rs) < 2 {
-		return rs
+		return slices.Clone(rs)
 	}
-	slices.SortFunc(rs, func(a, b iprange) int { return a.lo.Compare(b.lo) })
-	out := rs[:1]
-	for _, r := range rs[1:] {
+	work := slices.Clone(rs)
+	slices.SortFunc(work, func(a, b iprange) int { return a.lo.Compare(b.lo) })
+	out := work[:1]
+	for _, r := range work[1:] {
 		last := &out[len(out)-1]
 		if plusOneLess(last.hi, r.lo) { // gap: r starts strictly past last.hi+1
 			out = append(out, r)
@@ -99,7 +103,7 @@ func mergeRanges(rs []iprange) []iprange {
 			last.hi = r.hi
 		}
 	}
-	return out
+	return slices.Clone(out)
 }
 
 // Set is an immutable IPv4/IPv6 membership set. The zero Set is a valid empty
@@ -142,7 +146,9 @@ func (b *Builder) AddPrefix(s string) error {
 	return nil
 }
 
-// Freeze compiles the accumulated prefixes into an immutable Set.
+// Freeze compiles the accumulated prefixes into an immutable Set. The Set owns
+// its storage: the Builder may be reused, and further Add and Freeze calls
+// never affect a Set already returned.
 func (b *Builder) Freeze() *Set {
 	return &Set{v4: mergeRanges(b.v4), v6: mergeRanges(b.v6)}
 }
