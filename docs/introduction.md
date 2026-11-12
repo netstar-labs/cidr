@@ -17,7 +17,7 @@ prefixes and `Freeze`s into a `Set` — an immutable, sorted array of merged
 `TableBuilder[V]` collects `(prefix, value)` pairs and `Freeze`s into a
 `Table[V]`, whose `Lookup` returns the value carried by the *most specific*
 prefix covering an address. Both are backed by contiguous `net/netip.Addr`
-arrays with no pointers to chase, no interface dispatch, and no per-query
+arrays with no pointer-chasing on the query path, no interface dispatch, and no per-query
 allocation. Addresses arrive as strings through `ParsePrefix`, as
 whitespace-delimited spec text or a refs JSON envelope through the `Load*`
 loaders, or as start/end ranges through `AddRange` — the shapes real IP-to-ASN,

@@ -52,7 +52,7 @@ type SpecEntry struct {
 // Lines whose first field is not a valid CIDR or address are skipped, so an
 // occasional junk line in a large feed does not fail the load. The only error
 // is a failure of the underlying read, which includes bufio.ErrTooLong for a
-// line of 1 MiB (1<<20 bytes) or more. On error ParseSpec returns the entries
+// line of 1 MiB (1<<20 bytes, counting a trailing \r) or more. On error ParseSpec returns the entries
 // parsed before the failure together with the error.
 func ParseSpec(r io.Reader) ([]SpecEntry, error) {
 	var out []SpecEntry
@@ -146,7 +146,7 @@ func LoadSet(r io.Reader) (*Set, error) {
 // user guide for a worked example.
 //
 // Only whole lines beginning with '#' are comments; a '#' inside a line stays in
-// its field, so put annotations on their own line. A line of 1 MiB (1<<20 bytes)
+// its field, so put annotations on their own line. A line of 1 MiB (1<<20 bytes, counting a trailing \r)
 // or more fails the scan with bufio.ErrTooLong. On a read error LoadFunc returns
 // a non-nil Table built from the lines read before the failure, together with
 // the error; discard the Table unless a partial result is acceptable.

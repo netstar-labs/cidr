@@ -131,7 +131,8 @@ found the IPv4 range array about
 the gap widening as the set grew: the trie pointer-chases a node graph that falls
 out of cache, while the array stays contiguous and its cost grows only as
 `log N`. A specialised IPv4-only `uint32` range array (not shipped here, to keep
-one clean dual-family path) is faster still — roughly 3–4× the trie — and is the
+one clean dual-family path) is faster still — roughly 3–4× the trie in the same
+design-time comparison, likewise not reproduced here — and is the
 option to reach for only if the lookup itself ever becomes a measured hot spot.
 
 ## The trie trade-off — when a trie wins

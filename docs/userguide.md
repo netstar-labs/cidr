@@ -109,7 +109,7 @@ line is data: `203.0.113.7 64500 Example Org # note` yields the org
 
 Lines whose first field is not a valid prefix are skipped (so an occasional junk
 line in a large feed does not fail the load). The only error is a failed read,
-which includes `bufio.ErrTooLong` for a line of 1 MiB or more. On error:
+which includes `bufio.ErrTooLong` for a line of 1 MiB or more (a trailing `\r` counts). On error:
 `ParseSpec` returns the entries parsed before the failure plus the error;
 `LoadSet` and `LoadASN` return nil plus the error; `LoadFunc` returns a non-nil
 `Table` of the lines read before the failure plus the error (discard it unless a

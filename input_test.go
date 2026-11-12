@@ -288,3 +288,18 @@ func TestLoadErrTooLong(t *testing.T) {
 		t.Error("partial Table contains a line after the failure")
 	}
 }
+
+// TestLoadLineLimitBoundary pins the exact scanner limit: a line of 1<<20 bytes
+// (LF-terminated) fails with bufio.ErrTooLong and one byte shorter is accepted.
+func TestLoadLineLimitBoundary(t *testing.T) {
+	line := func(n int) string { // a valid spec line padded to exactly n bytes
+		head := "10.0.0.0/8 1 "
+		return head + strings.Repeat("x", n-len(head)) + "\n"
+	}
+	if _, err := ParseSpec(strings.NewReader(line(1<<20 - 1))); err != nil {
+		t.Errorf("line of 1<<20-1 bytes: err = %v, want nil", err)
+	}
+	if _, err := ParseSpec(strings.NewReader(line(1 << 20))); !errors.Is(err, bufio.ErrTooLong) {
+		t.Errorf("line of 1<<20 bytes: err = %v, want bufio.ErrTooLong", err)
+	}
+}
