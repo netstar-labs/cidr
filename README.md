@@ -27,7 +27,7 @@ No dependency beyond the Go standard library.
   <cidr> …  ─┼──────────────►  TableBuilder[V] ───┤
   lo–hi     ─┘  Add / AddPrefix  │ .Freeze()      └─ Table[V].Lookup(addr) → value + ok
                 / AddRange       ▼
-                          immutable, sorted net/netip range arrays
+                          immutable, sorted integer range arrays
                           (one binary search · 0 alloc · lock-free reads)
 ```
 
@@ -116,7 +116,8 @@ set, table, err := cidr.LoadASN(specReader) // membership Set + value Table[Info
 The same lines also come wrapped in the common refs JSON envelope
 (`{"name","version","list":[...]}`, e.g. `refs.netstar.dev`) — `cidr.LoadRefsASN`
 / `LoadRefsSet` / `ParseRefs` read it, and the `cidr` CLI's `-spec` accepts
-either form.
+either form. An envelope with no `list` key, or trailing data after it, is an
+error (`"list": []` and `null` are valid and empty).
 
 For non-ASN feeds, `LoadFunc` builds a `Table[V]` of any value type from a
 per-line parse callback, and `AddRange` ingests start/end ranges. Where to pull
@@ -137,8 +138,10 @@ cidr -spec block.txt -match < ips.txt             # filter: print only listed ad
 ```
 
 Flags: `-spec FILE` (required), `-brief` (terse aligned lines), `-match`
-(grep-like filter; exit 1 if nothing matched), `-quiet` (no stderr tally),
-`-version`. A run tally lands on stderr.
+(grep-like filter), `-quiet` (no stderr tally), `-version`. A run tally lands on
+stderr. Exit status follows grep: `0` ok (with `-match`, at least one address
+matched), `1` no match (`-match` only), `2` any error — including an unreadable
+spec or a failed write to stdout.
 
 Cross-compile a version-stamped static binary with [`build/cidr`](build/cidr)
 (`linux/amd64`, with an optional `scp` install to a host).
@@ -156,7 +159,10 @@ Cross-compile a version-stamped static binary with [`build/cidr`](build/cidr)
 - **[`iptoasn`](cmd/iptoasn)**, **[`mm-geolite2-asn`](cmd/mm-geolite2-asn)**,
   **[`mm-dbip`](cmd/mm-dbip)** — fetch a provider's IP-to-ASN/geo table and
   write the cidr spec, with an optional systemd generator (see
-  [data sources](docs/userguide.md#data-sources)).
+  [data sources](docs/userguide.md#data-sources)). Like `rir-country` and
+  `provider-function`, they publish `-o FILE` atomically and exit 1 — leaving the
+  previous file untouched — on a failed fetch or zero usable rows
+  ([failure behaviour](cmd/README.md#failure-behaviour)).
 - **[`rir-country`](cmd/rir-country)** — build a country spec from the five RIR
   delegated files: the primary record, with no account, key or vendor terms.
 - **[`provider-function`](cmd/provider-function)** — build a
@@ -165,8 +171,14 @@ Cross-compile a version-stamped static binary with [`build/cidr`](build/cidr)
   record, and the seam for adding further sources.
 - **[`mmdb-write`](cmd/mmdb-write)** — compile a cidr spec into a MaxMind DB
   (`.mmdb`) file, supporting both ASN (`GeoIP2-ASN`-compatible) and Country
-  (`GeoLite2-Country`-compatible) output schemas. Pipe any data generator
-  directly: `iptoasn | mmdb-write -o asn.mmdb`.
+  (`GeoLite2-Country`-compatible) output schemas, selected by `-db-type` (a
+  country spec needs `-db-type GeoLite2-Country`). The most specific prefix wins
+  whatever the input order, and it exits 1 without writing a file when nothing
+  was inserted. Pipe any data generator directly: `iptoasn | mmdb-write -o asn.mmdb`.
+  In a script prefer the staged form,
+  `iptoasn -o spec && mmdb-write -in spec -o asn.mmdb`: a plain shell pipe
+  without `pipefail` reports only the last command's status, so a failed download
+  still yields a (truncated) database and exit 0.
 - **[`mmdb-build-countries`](cmd/mmdb-build-countries)** — build the country
   nomenclature dataset (from Wikidata) that `mmdb-write` uses for Country DBs.
 
@@ -184,13 +196,25 @@ library and this package — see [example/](example/README.md).
 
 ## Performance
 
-Both queries are a single binary search with no allocation (Apple M2 Pro, Go
-1.25):
+Both queries are a single binary search over integer arrays, with no allocation.
+Measured with `go test -run xxx -bench . -benchmem -count 6 .` on an Apple M2 Pro
+(10 cores), Go 1.27.3 darwin/arm64, a lightly loaded machine; the six runs of
+each benchmark agree to within 4%, and the table gives the median (min in
+parentheses). Each benchmark builds a set of random `/24`s (IPv4) or `/48`s
+(IPv6) and queries 4,096 random addresses in rotation — at these densities
+almost all of them are misses:
 
-| operation | time | allocations |
-|---|---:|---:|
-| `Set.Contains` | ~88 ns/op | 0 |
-| `Table.Lookup` | ~88 ns/op | 0 |
+| `BenchmarkSetContains…` / `BenchmarkTableLookup…` | set | `Set.Contains` | `Table.Lookup` | allocs |
+|---|---|---:|---:|---:|
+| *(no suffix)* | 4,000 IPv4 `/24`s | 40 ns (39.7) | 44 ns (43.6) | 0 |
+| `V6` | 4,000 IPv6 `/48`s | 49 ns (48.6) | 54 ns (53.0) | 0 |
+| `500k` | 500,000 IPv4 `/24`s | 81 ns (80.0) | 90 ns (89.3) | 0 |
+| `V6500k` | 500,000 IPv6 `/48`s | 100 ns (98.9) | 108 ns (107.5) | 0 |
+
+Going from 4,000 to 500,000 prefixes about doubles the time, and IPv6 costs
+roughly 20–25% more than IPv4 at either size. Before the integer layout (frozen
+arrays of `netip.Addr`) the 4,000-prefix IPv4 case measured 87–88 ns on the same
+machine.
 
 In a design-time comparison against a path-compressed prefix trie (not part of
 this repository and not reproduced here), the range array was

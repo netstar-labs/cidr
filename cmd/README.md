@@ -25,7 +25,10 @@ it over ssh). Each prints its build with `-version`.
 
 Loads a `<cidr> [ASN] [org]` spec and looks up addresses from the arguments or
 stdin. NDJSON by default; `-brief` for terse lines; `-match` as a grep-like
-filter (exit 1 if nothing matched).
+filter. Exit status follows grep: `0` ok (with `-match`, at least one address
+matched), `1` no match (`-match` only), `2` any error — usage, an unreadable
+spec or input, or a failed write to stdout. A malformed address on the command
+line or stdin is skipped with a note on stderr, not an error.
 
 ```sh
 cidr -spec asn.txt 1.1.1.200 8.8.8.8
@@ -47,15 +50,19 @@ ipfold -4 < ips.txt              # IPv4 output only
 
 Built for scale: IPv4 aggregates through a 2³²-bit bitmap (bounded ~512 MiB,
 O(n), duplicate-robust) and parses straight from bytes — ~120M addresses fold in
-roughly 20 s at ~0.5 GiB. The output is a valid spec for `cidr -spec`.
+roughly 20 s at ~0.5 GiB. The output is a valid spec for `cidr -spec`. Only the
+first field of a line is read, split on whitespace **or commas**, so `10.0.0.12 note`
+and `10.0.0.12,note` both fold. (The spec parser behind `cidr -spec` and `mmdb-write`
+splits on whitespace only: a `<cidr>,<ASN>,<org>` line is not a spec line and is
+skipped.)
 
 ### `ipunfold` — expand CIDRs to an address list
 
 The inverse of `ipfold`: reads CIDR prefixes and writes every address each one
 covers, one per line. A bare address is accepted as its own `/32` or `/128` (so
 an `ipfold` output round-trips), host bits in a prefix are masked rather than
-rejected, and only the first field of a line is read — so a `<cidr> <ASN> <org>`
-spec expands too.
+rejected, and only the first field of a line is read (fields split on whitespace
+or commas) — so a `<cidr> <ASN> <org>` spec expands too.
 
 ```sh
 ipunfold < cidrs.txt              # expand stdin -> stdout
@@ -97,9 +104,37 @@ mm-dbip -db country | mmdb-write -db-type GeoLite2-Country -o dbip-country.mmdb
 mmdb-write -in my-spec.cidr -o my-asn.mmdb                    # from a file
 ```
 
+In a script, stage it instead (`iptoasn -o spec && mmdb-write -in spec -o db`) —
+a plain shell pipe reports only the last command's status; see
+[Pipelines](#pipelines).
+
 Flags: `-in`, `-o`, `-db-type` (default `GeoLite2-ASN`), `-description`
 (default: `IPtoASN` for `GeoLite2-ASN`, otherwise the db-type), `-build-epoch`,
 `-ip-version` (4 or 6, default 6), `-record-size` (24/28/32, default 24).
+
+**The schema follows `-db-type`.** A db-type containing `Country` writes the
+country schema and reads the second field as a two-letter country code; any other
+type writes the ASN schema (`<cidr> <ASN> <org>`). A country (or
+`provider-function`) spec given to the ASN schema is not an error — every record
+comes out with ASN 0 and the second field as the organisation — so `mmdb-write`
+warns on stderr when **every** inserted record has ASN 0. Give a country spec the
+matching `-db-type`.
+
+**Most specific prefix wins, whatever the input order.** Entries are inserted
+shortest prefix first (a stable sort, so of two identical prefixes the last in
+the spec wins), so `10.1.0.0/16` before or after `10.0.0.0/8` gives the same
+database — the one `cidr` would answer from the same spec. Residual divergences,
+by `mmdbwriter`'s design: IPv6 prefixes inside or covering `::/96` (which holds
+the IPv4 subtree), and the networks that alias it (`2001::/32`, `2002::/16`,
+`::ffff:0:0/96`) are skipped or write through into the IPv4 side.
+
+**Tally and exit status.** stderr carries
+`inserted=N skipped: unparseable=… pseudo-code=… unknown-country=… unknown-continent=… aliased=…`.
+If nothing was inserted — an empty spec, or every entry skipped (an ASN spec given
+`-db-type GeoLite2-Country` skips them all as unknown countries) — it exits 1 and
+writes no file. With `-o FILE` the database is published atomically (temp file in
+the target's directory, fsync, rename; a symlinked target is followed, an existing
+file's mode kept, new files 0644; a failure leaves the previous file untouched).
 
 Country metadata is stored in `cmd/mmdb-write/data/countries.json` and embedded
 at build time. Refresh it from [Wikidata](https://www.wikidata.org) like so:
@@ -124,9 +159,25 @@ iptoasn -output country | mmdb-write -db-type GeoLite2-Country -o iptoasn-countr
 mm-dbip -db country | mmdb-write -db-type GeoLite2-Country -o dbip-country.mmdb
 ```
 
+**Caution: in a script, do not rely on the pipe.** A plain shell pipe without
+`pipefail` reports the *last* command's status, so a generator that fails part-way
+through a download (stdout is not atomic: rows already flushed are already sent)
+leaves `mmdb-write` compiling a truncated spec, and the pipeline exits 0. (With
+`set -o pipefail` the status is honest, but the truncated database is still
+written.) Stage it, so the database is never built from a failed fetch:
+
+```sh
+iptoasn -o spec && mmdb-write -in spec -o iptoasn-asn.mmdb
+iptoasn -output country -o spec && mmdb-write -in spec -db-type GeoLite2-Country -o iptoasn-country.mmdb
+```
+
 Scheduled regeneration via `build/mmdb-iptoasn-write --generator` — installs a
 daily oneshot service + timer that fetches iptoasn.com and compiles
-`/var/lib/cidr/iptoasn-asn.mmdb` and `/var/lib/cidr/iptoasn-country.mmdb` automatically.
+`/var/lib/cidr/iptoasn-asn.mmdb` and `/var/lib/cidr/iptoasn-country.mmdb`
+automatically. The unit is staged, not piped: one `ExecStart=` per step (fetch the
+spec, compile to `….new`, `mv` over the live file), so systemd stops at the first
+failing step and the live database is never touched; `TimeoutStartSec=1h` bounds
+the whole run.
 
 ## Data generators (fetch + convert)
 
@@ -134,7 +185,9 @@ Each downloads a provider's table and writes a cidr spec; range-based sources
 are decomposed to CIDRs. All write stdout or `-o FILE` with a tally on stderr,
 and each has a `build/<name> --generator` mode that installs a oneshot systemd
 service + timer to regenerate the spec into `/var/lib/cidr/` on a schedule — see
-the [user guide](../docs/userguide.md#scheduled-generation-systemd).
+the [user guide](../docs/userguide.md#scheduled-generation-systemd). A generator
+succeeds only if it published a complete file: see
+[Failure behaviour](#failure-behaviour).
 
 Two things differ per generator, so check the tool's own section rather than
 assuming:
@@ -149,6 +202,46 @@ assuming:
   `provider-function` takes `-in provider=path` pairs and does not auto-detect
   gzip, because its five feeds have four different shapes and the format cannot
   be inferred from a filename.
+
+### Failure behaviour
+
+Shared by `iptoasn`, `mm-dbip`, `mm-geolite2-asn`, `rir-country` and
+`provider-function`. **A monitor must look at the exit code**: a failure exits
+`1` (bad flags: `2`) and no longer prints a `rows=0` tally with exit 0.
+
+- **Atomic output.** With `-o FILE` the spec is written to a hidden
+  `.<name>.tmp-*` in the target's directory, fsynced, and renamed over the target
+  only after every check has passed, so a reader sees the previous complete file
+  or the new one, never a prefix. A symlinked target is followed (the link
+  survives); a special file such as `/dev/null` is written through, not replaced;
+  an existing file's mode is kept (new files get 0644). On any failure — fetch,
+  stall, corrupt or truncated input, no usable rows — the previous file is left
+  untouched. Two consequences of rename: a hard link to the output no longer sees
+  updates, and a custom owner is not preserved. A run killed mid-download leaves a
+  hidden `.<name>.tmp-*` behind, which a `*.cidr` glob ignores. Stdout (no `-o`,
+  or `-o -`) is a stream, not a file: rows already flushed are already gone, so
+  atomicity is a property of `-o FILE`.
+- **Zero usable rows is an error.** An HTML error page or empty body used to
+  publish a 0-byte file and exit 0; it now exits 1 with `no usable rows …;
+  nothing published, previous output left untouched`. A truncated stream or
+  dropped connection is an error too, never a short file.
+- **`-timeout` (default 30s) is also the idle deadline.** It bounds the dial, TLS
+  handshake and response headers, *and* the gap between bytes of the body: a
+  server that stops sending fails the run after `-timeout`, while a large, slow
+  download that keeps sending completes (there is no overall deadline). `-timeout 0`
+  means no limit at all. The build units add a wall-clock cap, `TimeoutStartSec`.
+- **`rir-country`** prints one stderr line per registry —
+  `rir-country: <registry> rows=N malformed=N header=bool` — before its summary,
+  and exits 1, naming the registry, when a registry that was read contributed no
+  records. A file without its version header counts one malformed line.
+- **`provider-function`** guards per **feed** (one URL, or one `-in` entry), not
+  per provider; see [`provider-function`](#provider-function).
+- **`mm-geolite2-asn`** checks the CSV header of every file and counts non-prefix
+  rows as skipped; **`mm-dbip`** skips a row with an empty or invalid ASN (counted
+  as malformed).
+- **`-conflict-log FILE`** (`rir-country`, `provider-function`) is itself written
+  atomically, but after the spec is published: if writing it fails the run exits 1
+  with the new spec already in place.
 
 ### `iptoasn`
 
@@ -165,6 +258,12 @@ iptoasn -in ip2asn-combined.tsv.gz
 
 Flags: `-output` (`asn`/`country`), `-family`, `-url`, `-in`, `-o`, `-unrouted`
 (keep AS0 rows), `-country` (prepend country to org in asn mode), `-timeout`.
+
+With `-country`, a row whose source country is `None` gets **no** country field:
+`<cidr> <ASN> <org>` instead of `<cidr> <ASN> <CC> <org>`. The file is therefore
+not a fixed-column format — a consumer must not read the third field positionally
+as a country code (it may be the first word of the org). Country mode
+(`-output country`) skips `None` rows entirely.
 
 ### `mm-geolite2-asn`
 
@@ -215,6 +314,10 @@ several prefixes. Only `allocated`/`assigned`
 ipv4/ipv6 rows with a two-letter country are kept; asn rows, summaries, the
 version header and `reserved`/`available` blocks are skipped.
 
+Each registry's yield is reported on stderr (see [Failure
+behaviour](#failure-behaviour)), and the run fails, publishing nothing, if a
+registry that was read contributed nothing.
+
 **Conflicts.** Two registries can claim the same prefix with different
 countries. `-conflict date` (default) takes the later delegation date;
 `-conflict specific` takes the narrower source allocation. Prefixes of
@@ -244,10 +347,23 @@ lets `-in` win, with a warning on stderr.
 
 **Nothing fails quietly.** Unusable rows are counted per provider and reported as
 `malformed[...]`; an attempted provider always appears in `records[...]`, at zero
-if it yielded nothing. A source that produced **no** usable rows is a hard error
-and no output file is written — none of these feeds is ever legitimately empty,
-so zero rows means the fetch or the parse broke, and writing the file anyway
-would truncate the published spec on a "successful" `--generator` timer run.
+if it yielded nothing, and stderr carries one
+`feed <provider> <name> rows=N malformed=N` line per feed. A **feed** — one URL,
+or one `-in` entry — that produced no usable rows is a hard error and no output
+file is written, and the error names every dead feed. The unit is the feed, not
+the provider: Cloudflare's `ips-v6` being empty fails the run even though `ips-v4`
+is healthy. None of these feeds is ever legitimately empty, so zero rows means the
+fetch or the parse broke, and writing the file anyway would truncate the published
+spec on a "successful" `--generator` timer run.
+
+Shape changes are hard errors for the same reason. A JSON feed whose expected
+top-level array is **missing or `null`** (AWS `prefixes` / `ipv6_prefixes`, Fastly
+`addresses` / `ipv6_addresses`, Google `prefixes`) has changed shape and fails
+naming the key, instead of dropping a whole address family; a present-but-empty
+array is accepted (the feed-level guard decides). A Google entry with neither
+`ipv4Prefix` nor `ipv6Prefix` counts as malformed, and a line-list feed with a
+line of 1 MiB or more fails rather than losing every row after it. `-o -` writes
+to stdout.
 
 Sources: AWS `ip-ranges.json`, Google Cloud `cloud.json`, Cloudflare `ips-v4` +
 `ips-v6`, Fastly `public-ip-list`, Tor `torbulkexitlist`. Read back with
@@ -380,7 +496,10 @@ mmdb-build-countries -o data/countries.json                # custom output path
 ```
 
 Flags: `-o` (default `cmd/mmdb-write/data/countries.json`), `-wikidata-url`
-(default `https://query.wikidata.org/sparql`).
+(default `https://query.wikidata.org/sparql`), `-allow-missing`. If any country
+lacks a GeoNames id, a continent, or an English name, it prints them and exits 1
+without writing the file; `-allow-missing` writes it anyway (the id is then
+omitted, and `mmdb-write` writes such a country without a `geoname_id`).
 
 ---
 
