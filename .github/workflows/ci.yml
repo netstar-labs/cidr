@@ -15,10 +15,29 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - run: go build ./...
-      - run: go test ./... -count=1
+      # the race detector over every package (this is the main test run)
+      - run: go test -race -count=1 ./...
+      # 32-bit: pure Go, runs natively on the amd64 runner via IA32 emulation; catches
+      # int-size and alignment assumptions (the race detector is not available on 386)
+      - run: go test -count=1 ./...
+        env:
+          GOARCH: "386"
+      # cmd/mmdb-write is its own module (go.mod with replace => ../..) and the go.work
+      # workspace does not match it from ./..., so vet and test it explicitly; GOWORK=off
+      # makes it build against its own go.mod/go.sum rather than the workspace
+      - run: go vet ./...
+        working-directory: cmd/mmdb-write
+        env:
+          GOWORK: "off"
+      - run: go test -count=1 ./...
+        working-directory: cmd/mmdb-write
+        env:
+          GOWORK: "off"
       # short fuzz pass over the spec parser and build/query path
       - run: go test -run xxx -fuzz FuzzParseSpec -fuzztime 15s .
       # and over the RIR delegated-record parser, which reads fetched bytes
       - run: go test -run xxx -fuzz FuzzParseLine -fuzztime 15s ./cmd/rir-country
       # and over the four operator-feed parsers, which also read fetched bytes
       - run: go test -run xxx -fuzz FuzzParsers -fuzztime 15s ./cmd/provider-function
+      # and over the MMDB reader (untrusted files); -fuzzminimizetime 0 avoids the stalling per-input minimiser, crashes are still saved
+      - run: go test -run xxx -fuzz FuzzOpenMMDB -fuzztime 15s -fuzzminimizetime 0 .
