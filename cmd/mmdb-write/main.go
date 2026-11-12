@@ -236,6 +236,7 @@ func treeDepth(p netip.Prefix) int {
 // GeoLite2-Country-style record (continent + country + registered_country).
 // registered_country mirrors country (IPtoASN carries a single country per
 // range), and non-country pseudo-codes (EU, AP, ZZ, Unknown, empty) are skipped.
+// A country with no geoname_id (0) is written without one.
 //
 // mmdbwriter inserts with replace semantics: a prefix inserted after a covering
 // one carves its range out of it, but a covering prefix inserted after a nested
@@ -311,9 +312,11 @@ func writeMMDB(w io.Writer, entries []cidr.SpecEntry, dbType, description string
 			}
 
 			countryRec := map[string]any{
-				"geoname_id": ci.GeonameID,
-				"iso_code":   isoCode,
-				"names":      ci.Names,
+				"iso_code": isoCode,
+				"names":    ci.Names,
+			}
+			if ci.GeonameID != 0 { // an id of 0 is "unknown", not a GeoNames id
+				countryRec["geoname_id"] = ci.GeonameID
 			}
 			rcRec := maps.Clone(countryRec)
 			if ci.IsInEuropeanUnion {
