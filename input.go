@@ -9,20 +9,6 @@ import (
 	"strings"
 )
 
-// A spec is a whitespace-delimited text stream, one prefix per line:
-//
-//	<cidr>[ <ASN>[ <org...>]]
-//
-//	10.0.0.0/8
-//	1.1.1.0/24 13335 Cloudflare, Inc.
-//	8.8.8.0/24 AS15169 Google LLC
-//	203.0.113.7 64500 Example Org        # a bare address is a host route (/32)
-//
-// The ASN field is optional and may carry a leading "AS"; everything after it
-// is the organisation name. Blank lines and lines beginning with '#' are
-// ignored. It is the shape of a typical IP-to-ASN table, and a plain list of
-// CIDRs (no ASN/org) is a valid degenerate case.
-
 // Info is the value attached to a prefix loaded from a spec: the origin AS
 // number and organisation name, alongside the matched prefix in CIDR form. It
 // is the value type of the Table that LoadASN builds, and encodes to compact
@@ -40,10 +26,34 @@ type SpecEntry struct {
 	Org    string
 }
 
-// ParseSpec reads a spec (see the package example) from r into entries. Lines
-// whose first field is not a valid CIDR or address are skipped, so an
-// occasional junk line in a large feed does not fail the load; only an
-// underlying read error is returned.
+// ParseSpec reads a spec from r into entries. A spec is a whitespace-delimited
+// text stream, one prefix per line:
+//
+//	<cidr> [ASN] [org...]
+//
+//	# a whole-line comment
+//	10.0.0.0/8
+//	1.1.1.0/24 13335 Cloudflare, Inc.
+//	8.8.8.0/24 AS15169 Google LLC
+//	# a bare address is a host route (/32)
+//	203.0.113.7 64500 Example Org
+//
+// The first field is a CIDR prefix or a bare address (a host route). The
+// second field is an AS number, optionally with a leading "AS"; everything
+// after it is the organisation name. Both are optional, so a plain list of
+// CIDRs is a valid degenerate case. If the second field is not a valid AS
+// number it is not skipped: it starts the organisation name and the ASN is 0.
+// The shape is that of a typical IP-to-ASN table.
+//
+// Only blank lines and whole lines whose first non-space character is '#' are
+// comments. A '#' inside a line is data: "10.0.0.0/8 64500 Example # note"
+// yields the organisation "Example # note".
+//
+// Lines whose first field is not a valid CIDR or address are skipped, so an
+// occasional junk line in a large feed does not fail the load. The only error
+// is a failure of the underlying read, which includes bufio.ErrTooLong for a
+// line of 1 MiB (1<<20 bytes, counting a trailing \r) or more. On error ParseSpec returns the entries
+// parsed before the failure together with the error.
 func ParseSpec(r io.Reader) ([]SpecEntry, error) {
 	var out []SpecEntry
 	sc := bufio.NewScanner(r)
@@ -118,7 +128,8 @@ func BuildASN(entries []SpecEntry) (*Set, *Table[Info]) {
 }
 
 // LoadSet reads a spec (or a plain CIDR list) from r and compiles a membership
-// Set, ignoring any ASN/org fields.
+// Set, ignoring any ASN/org fields. The spec grammar is described at ParseSpec.
+// On a read error it returns a nil Set and the error.
 func LoadSet(r io.Reader) (*Set, error) {
 	entries, err := ParseSpec(r)
 	if err != nil {
@@ -133,6 +144,12 @@ func LoadSet(r io.Reader) (*Set, error) {
 // '#'-comments are dropped before parse is called. This is the generic loader
 // for any "<cidr-or-prefix> <data...>" feed whose value is not an ASN — see the
 // user guide for a worked example.
+//
+// Only whole lines beginning with '#' are comments; a '#' inside a line stays in
+// its field, so put annotations on their own line. A line of 1 MiB (1<<20 bytes, counting a trailing \r)
+// or more fails the scan with bufio.ErrTooLong. On a read error LoadFunc returns
+// a non-nil Table built from the lines read before the failure, together with
+// the error; discard the Table unless a partial result is acceptable.
 func LoadFunc[V any](r io.Reader, parse func(fields []string) (netip.Prefix, V, bool)) (*Table[V], error) {
 	tb := NewTableBuilder[V]()
 	sc := bufio.NewScanner(r)
@@ -153,6 +170,7 @@ func LoadFunc[V any](r io.Reader, parse func(fields []string) (netip.Prefix, V, 
 // LoadASN reads a spec from r and compiles both a membership Set (yes/no) and an
 // LPM value Table[Info] (yes+data). One pass builds both, so a caller can answer
 // "is this address listed?" and "which AS/org owns it?" from the same input.
+// On a read error it returns nil for both and the error.
 func LoadASN(r io.Reader) (*Set, *Table[Info], error) {
 	entries, err := ParseSpec(r)
 	if err != nil {

@@ -10,8 +10,10 @@ prefixes once, then answer two questions with zero per-query allocation —
 
 It is built for static, build-once-query-many workloads: blocklists and
 allowlists, IP-to-ASN and geo tables, parked/sinkhole ranges, firewall feeds.
-For those, a sorted range array is both **faster and an order of magnitude
-smaller** than a prefix trie (see [Architecture](docs/architecture.md)).
+For those, a sorted range array was both **faster and an order of magnitude
+smaller** than a prefix trie in a design-time comparison (the trie is not part of
+this repository and the comparison is not reproduced here; see
+[Architecture](docs/architecture.md) for the trade-off).
 
 No dependency beyond the Go standard library.
 
@@ -98,12 +100,14 @@ one prefix per line — the shape of a typical IP-to-ASN table:
 10.0.0.0/8
 1.1.1.0/24     13335 Cloudflare, Inc.
 8.8.8.0/24     AS15169 Google LLC
-203.0.113.7    64500 Example Org        # a bare address is a /32 host route
+# a bare address is a /32 host route
+203.0.113.7    64500 Example Org
 2001:db8::/32  64502 Documentation v6
 ```
 
 The ASN (optionally `AS`-prefixed) and organisation name are optional; a plain
-list of CIDRs is a valid degenerate case.
+list of CIDRs is a valid degenerate case. Only whole lines beginning with `#`
+are comments; a `#` inside a line is data, so annotations go on their own line.
 
 ```go
 set, table, err := cidr.LoadASN(specReader) // membership Set + value Table[Info]
@@ -188,7 +192,8 @@ Both queries are a single binary search with no allocation (Apple M2 Pro, Go
 | `Set.Contains` | ~88 ns/op | 0 |
 | `Table.Lookup` | ~88 ns/op | 0 |
 
-Against a path-compressed prefix trie on the same data, the range array is
+In a design-time comparison against a path-compressed prefix trie (not part of
+this repository and not reproduced here), the range array was
 roughly **2× faster on IPv4, allocation-free where the trie allocates per query,
 and ~8–60× smaller in memory**; the gap widens with set size. The one thing the
 array gives up — cheap incremental insert/remove of single prefixes under live
@@ -205,7 +210,7 @@ trees):
 |---|---|
 | [`cidr.go`](cidr.go) | Package doc; `ParsePrefix`; the `Set` membership type, its `Builder`, and the range-merge that fuses overlaps at `Freeze` |
 | [`table.go`](table.go) | `Table[V]` longest-prefix-match value table and `TableBuilder[V]`; the build-time line sweep that resolves nesting; `EncodeASN`/`DecodeASN` |
-| [`input.go`](input.go) | Text/JSON loaders — `ParseSpec`, `LoadSet`, `LoadASN`, `LoadFunc`, the `Refs` envelope (`ParseRefs`/`LoadRefs*`), and the `Info`/`SpecEntry` types |
+| [`input.go`](input.go) | Text/JSON loaders — `ParseSpec`, `LoadSet`, `LoadASN`, `BuildASN`, `LoadFunc`, the `Refs` envelope (`ParseRefs`/`LoadRefs*`), and the `Info`/`SpecEntry` types |
 | [`range.go`](range.go) | Range ingest — `AddRange`, `RangePrefixes`/`AppendRangePrefixes`, and the `u128` range-to-CIDR arithmetic behind them |
 | [`mmdb.go`](mmdb.go) | Stdlib-only MaxMind DB (`.mmdb`) reader — `OpenMMDB`/`OpenMMDBBytes`, `(*MMDB).Lookup`/`Metadata`/`Close`; safe for concurrent lookups |
 

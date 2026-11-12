@@ -43,12 +43,16 @@ matters:
 
 | Concern | this library's answer |
 |---|---|
-| Query speed | a binary search over contiguous memory — ~2× a trie on IPv4, and it stays cache-resident |
-| Allocation | **zero** per query; the trie allocates on each lookup |
-| Memory | a flat array is ~8–60× smaller than the equivalent trie node graph |
+| Query speed | a binary search over contiguous memory — ~2× a trie on IPv4 in a design-time comparison, and it stays cache-resident |
+| Allocation | **zero** per query; the compared trie allocated on each lookup |
+| Memory | a flat array was ~8–60× smaller than the equivalent trie node graph in that comparison |
 | Values | `Table[V]` returns any payload; longest-prefix match is baked in at build time |
 | Concurrency | immutable after `Freeze`, so many goroutines query without a lock |
 | Dependencies | standard library only |
+
+The trie figures come from a design-time comparison against a path-compressed trie
+that is not part of this repository and is not reproduced here; the `Set`/`Table`
+lookup timings (~88 ns, zero allocations) are reproducible with `go test -bench .`.
 
 The trade-off it accepts — no cheap incremental mutation under live queries — is
 exactly the capability a static, wholesale-rebuilt set does not use.

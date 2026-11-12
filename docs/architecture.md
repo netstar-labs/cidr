@@ -12,8 +12,10 @@ CIDR prefix is a contiguous **range** of those integers — `1.1.1.0/24` is exac
 
 The whole library rests on one representation: **sorted arrays of address
 ranges, searched with binary search.** Addresses are `net/netip.Addr` values —
-comparable, fixed-size, and heap-free — so a range array is one contiguous block
-of memory with no pointers to chase and no per-query allocation.
+comparable and fixed-size (24 bytes) — so a range array is one contiguous block
+of memory with no pointer-chasing on the query path and no per-query
+allocation. (Each `Addr` carries one shared, interned zone handle, so the array
+is flat but not pointer-free; see [Memory](#memory).)
 
 IPv4 and IPv6 are kept in separate arrays within each structure; a query is
 routed to one by address family, then binary-searched.
@@ -96,15 +98,21 @@ Queries allocate nothing. Build allocates the arrays once.
 
 A `Set` interval is two `netip.Addr` values; a `Table` segment is one `Addr`
 plus a 32-bit index. Both are flat, contiguous arrays — no per-node object, no
-child pointers, no interface headers. In practice this is **roughly 8–60× less
+child pointers, no interface headers. In a design-time comparison this was **roughly 8–60× less
 memory than the equivalent path-compressed trie**, whose every node carries
-parent and child pointers, a mask, and an entry interface. The exact ratio grows
-with set size and with how much the input merges.
+parent and child pointers, a mask, and an entry interface. The ratio grew
+with set size and with how much the input merged. That comparison was made
+against a trie implementation that is not part of this repository and is not
+reproduced here, so treat the figures as the design rationale, not as a
+reproducible benchmark. (The `Set`/`Table` figures in [Benchmarks](#benchmarks)
+do reproduce: `go test -bench .`.)
 
-Because the arrays are flat and pointer-free, they also serialise trivially
-(e.g. to a memory-mappable blob) — though for the sizes these sets typically
-reach, an in-memory rebuild from the source text is fast enough that persistence
-is rarely worth the complexity.
+The arrays are flat and contiguous, but not pointer-free: every `netip.Addr`
+contains a `unique.Handle` for its IPv6 zone (a pointer to one shared, interned
+value). Persisting a set therefore means encoding its addresses (for example
+with `Addr.As16`) and decoding them on load, not dumping the memory — and for
+the sizes these sets typically reach, an in-memory rebuild from the source text
+is fast enough that persistence is rarely worth the complexity.
 
 ## Benchmarks
 
@@ -116,12 +124,15 @@ BenchmarkSetContains-10    ~88 ns/op    0 B/op    0 allocs/op
 BenchmarkTableLookup-10    ~88 ns/op    0 B/op    0 allocs/op
 ```
 
-Against a path-compressed trie on the same data, the IPv4 range array is about
-**2× faster** and allocation-free where the trie allocates once per query, and
-the gap widens as the set grows: the trie pointer-chases a node graph that falls
+The design-time comparison against a path-compressed trie on the same data (a
+trie that is not part of this repository, and a comparison not reproduced here)
+found the IPv4 range array about
+**2× faster** and allocation-free where the trie allocates once per query, with
+the gap widening as the set grew: the trie pointer-chases a node graph that falls
 out of cache, while the array stays contiguous and its cost grows only as
 `log N`. A specialised IPv4-only `uint32` range array (not shipped here, to keep
-one clean dual-family path) is faster still — roughly 3–4× the trie — and is the
+one clean dual-family path) is faster still — roughly 3–4× the trie in the same
+design-time comparison, likewise not reproduced here — and is the
 option to reach for only if the lookup itself ever becomes a measured hot spot.
 
 ## The trie trade-off — when a trie wins

@@ -17,7 +17,7 @@ prefixes and `Freeze`s into a `Set` — an immutable, sorted array of merged
 `TableBuilder[V]` collects `(prefix, value)` pairs and `Freeze`s into a
 `Table[V]`, whose `Lookup` returns the value carried by the *most specific*
 prefix covering an address. Both are backed by contiguous `net/netip.Addr`
-arrays with no pointers to chase, no interface dispatch, and no per-query
+arrays with no pointer-chasing on the query path, no interface dispatch, and no per-query
 allocation. Addresses arrive as strings through `ParsePrefix`, as
 whitespace-delimited spec text or a refs JSON envelope through the `Load*`
 loaders, or as start/end ranges through `AddRange` — the shapes real IP-to-ASN,
@@ -31,8 +31,9 @@ longest-prefix-match winner for every disjoint segment of the line. What the
 build hands back is flat: the router's most-specific-wins rule, resolved into the
 very same sorted array that membership uses, so a value lookup costs exactly what
 a yes/no test costs — one binary search, zero allocation — over a structure
-roughly `8–60×` smaller than the equivalent trie (see
-[architecture](architecture.md) for the measurements). The value type `V` is
+roughly `8–60×` smaller than the equivalent trie in a design-time comparison
+(against a path-compressed trie that is not part of this repository and not
+reproduced here; see [architecture](architecture.md) for the trade-off). The value type `V` is
 yours: a struct, a string, or a compact `uint64` packed by `EncodeASN`.
 
 What you keep, plainly, is a build-once contract. The set is immutable after

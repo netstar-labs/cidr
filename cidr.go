@@ -12,11 +12,18 @@
 //     query is a single binary search that returns the value directly.
 //
 // Both are backed by sorted, contiguous arrays of net/netip addresses: no
-// pointer-chasing, no interface dispatch, and a flat memory layout that
-// serialises trivially. For the static, build-once-query-many workloads this
-// package targets — blocklists, allowlists, IP-to-ASN and geo tables — a sorted
-// range array is both faster and an order of magnitude smaller than a prefix
-// trie; see docs/architecture.md for the measurements and the trade-off.
+// pointer-chasing on the query path and no interface dispatch. Each netip.Addr
+// carries one shared, interned zone handle, so the arrays are not plain data
+// that can be dumped from memory; persisting a set means encoding its addresses
+// (for example with Addr.As16). For the static, build-once-query-many workloads
+// this package targets — blocklists, allowlists, IP-to-ASN and geo tables — a
+// sorted range array is designed to be faster and an order of magnitude smaller
+// than a prefix trie. That comparison was made at design time against a
+// path-compressed trie that is not part of this repository and is not
+// reproduced here; see docs/architecture.md for the trade-off.
+//
+// The package also includes a stdlib-only MaxMind DB reader (OpenMMDB). MMDB
+// lookups decode a map per query and are not allocation-free.
 //
 // The package has no dependency beyond the Go standard library.
 //
