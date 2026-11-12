@@ -99,7 +99,7 @@
         "en": "Ascension",
         "ru": "Остров Вознесения"
       },
-      "continent_code": "",
+      "continent_code": "AF",
       "is_in_european_union": false
     },
     "AD": {
@@ -864,7 +864,7 @@
         "ru": "Сарк",
         "zh-CN": "萨克"
       },
-      "continent_code": "",
+      "continent_code": "EU",
       "is_in_european_union": false
     },
     "CR": {
@@ -2619,16 +2619,16 @@
       "is_in_european_union": false
     },
     "NL": {
-      "geoname_id": 0,
+      "geoname_id": 2750405,
       "names": {
-        "de": "Königreich der Niederlande",
-        "en": "Kingdom of the Netherlands",
-        "es": "Reino de los Países Bajos",
-        "fr": "Royaume des Pays-Bas",
-        "ja": "オランダ王国",
-        "pt-BR": "Reino dos Países Baixos",
-        "ru": "Королевство Нидерландов",
-        "zh-CN": "荷兰王国"
+        "de": "Niederlande",
+        "en": "Netherlands",
+        "es": "Países Bajos",
+        "fr": "Pays-Bas",
+        "ja": "オランダ",
+        "pt-BR": "Países Baixos",
+        "ru": "Нидерланды",
+        "zh-CN": "荷兰"
       },
       "continent_code": "EU",
       "is_in_european_union": true
@@ -3346,7 +3346,7 @@
         "ja": "トリスタンダクーニャ",
         "ru": "Острова Тристан-да-Кунья"
       },
-      "continent_code": "",
+      "continent_code": "AF",
       "is_in_european_union": false
     },
     "TC": {

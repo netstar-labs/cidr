@@ -75,8 +75,8 @@ func (b *TableBuilder[V]) AddPrefix(s string, v V) error {
 // Freeze compiles the accumulated prefixes into an immutable Table.
 func (b *TableBuilder[V]) Freeze() *Table[V] {
 	return &Table[V]{
-		v4:   sweep(b.v4),
-		v6:   sweep(b.v6),
+		v4:   sweep(b.v4, 32),
+		v6:   sweep(b.v6, 128),
 		vals: b.vals,
 	}
 }
@@ -105,26 +105,28 @@ func dedup(prefixes []pfx) []pfx {
 // sweep resolves nested/overlapping prefixes into disjoint segments, each
 // labelled with the longest-prefix (most-specific) value. A line sweep opens
 // each prefix at lo and closes it just past hi; at every boundary the winner is
-// the longest active prefix. O((P+S)·log P) with a constant-length scan (≤129)
-// per boundary.
-func sweep(prefixes []pfx) []segment {
+// the longest active prefix. O((P+S)·log P) with a constant-length scan (at most
+// maxLen+1) per boundary. maxLen is the family's address width (32 or 128): no
+// prefix is longer, so the winner scan starts there.
+func sweep(prefixes []pfx, maxLen int) []segment {
 	if len(prefixes) == 0 {
 		return nil
 	}
 	prefixes = dedup(prefixes)
 	// open at lo, close just past hi. A prefix ending at the family maximum has
-	// no close event: nothing lies past it, so there is nothing to emit.
+	// no close event: nothing lies past it, so there is nothing to emit. The
+	// fields are ordered to pack into 32 bytes.
 	type event struct {
 		at     netip.Addr
-		open   bool
-		length int
 		vi     int32
+		length uint8
+		open   bool
 	}
 	evs := make([]event, 0, len(prefixes)*2)
 	for _, p := range prefixes {
-		evs = append(evs, event{at: p.lo, open: true, length: p.length, vi: p.vi})
+		evs = append(evs, event{at: p.lo, open: true, length: uint8(p.length), vi: p.vi})
 		if n := p.hi.Next(); n.IsValid() {
-			evs = append(evs, event{at: n, length: p.length, vi: p.vi})
+			evs = append(evs, event{at: n, length: uint8(p.length), vi: p.vi})
 		}
 	}
 	slices.SortFunc(evs, func(x, y event) int { return x.at.Compare(y.at) })
@@ -132,7 +134,8 @@ func sweep(prefixes []pfx) []segment {
 	var (
 		count [129]int   // active prefixes per mask length (0..128)
 		valBy [129]int32 // active value index per mask length
-		out   []segment
+		// at most one segment per boundary: size for that, then trim below
+		out = make([]segment, 0, len(evs))
 	)
 	for i := 0; i < len(evs); {
 		at := evs[i].at
@@ -147,7 +150,7 @@ func sweep(prefixes []pfx) []segment {
 			i++
 		}
 		winner := int32(-1)
-		for l := 128; l >= 0; l-- {
+		for l := maxLen; l >= 0; l-- {
 			if count[l] > 0 {
 				winner = valBy[l]
 				break
@@ -158,7 +161,7 @@ func sweep(prefixes []pfx) []segment {
 		}
 		out = append(out, segment{start: at, vi: winner})
 	}
-	return out
+	return slices.Clone(out) // trim the capacity: the Table keeps this for life
 }
 
 // Lookup returns the value of the most-specific prefix covering a, or the zero V

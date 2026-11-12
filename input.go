@@ -3,6 +3,8 @@ package cidr
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/netip"
 	"strconv"
@@ -193,13 +195,32 @@ type Refs struct {
 	List    []string `json:"list"`
 }
 
-// ParseRefs decodes a refs JSON envelope from r.
+// ParseRefs decodes a refs JSON envelope from r. The envelope must be a single
+// JSON value with a "list" key: a missing or renamed "list" is an error (an empty
+// set from a mangled feed would otherwise pass for a valid one), as is anything
+// but whitespace after the value. "list": [] and "list": null are both valid and
+// yield an empty list (a Go producer marshals an empty nil slice as null).
 func ParseRefs(r io.Reader) (*Refs, error) {
-	var rf Refs
-	if err := json.NewDecoder(r).Decode(&rf); err != nil {
+	var env struct {
+		Name    string          `json:"name"`
+		Version int             `json:"version"`
+		List    json.RawMessage `json:"list"`
+	}
+	dec := json.NewDecoder(r)
+	if err := dec.Decode(&env); err != nil {
 		return nil, err
 	}
-	return &rf, nil
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, errors.New(`refs: unexpected data after the JSON envelope`)
+	}
+	if env.List == nil { // key absent (a JSON null decodes to the bytes "null")
+		return nil, errors.New(`refs: envelope has no "list" array`)
+	}
+	var list []string
+	if err := json.Unmarshal(env.List, &list); err != nil {
+		return nil, fmt.Errorf("refs: list: %w", err)
+	}
+	return &Refs{Name: env.Name, Version: env.Version, List: list}, nil
 }
 
 // Entries parses the refs list into spec entries, skipping blank/comment lines

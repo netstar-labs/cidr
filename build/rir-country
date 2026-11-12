@@ -29,6 +29,11 @@ STAGEDIR=/var/lib/cidr
 OUTFILE=rir-country.cidr
 GENARGS="-conflict date"          # -conflict date|specific
 TIMER="*-*-* 05:40:00 UTC"        # daily; the RIRs republish every day
+# TimeoutStartSec: Type=oneshot has no start timeout by default, and the fetch has
+# no whole-body deadline, so a hung download would block the timer forever.
+# 30min: five small RIR delegated files, fetched in sequence.
+# Generous for that, and still frees the timer well before its next run.
+START_TIMEOUT=30min
 
 # ---- common ------------------------------------------------------------------
 BIN=/usr/local/bin
@@ -75,6 +80,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=$BIN/$BINARY $GENARGS -o $STAGEDIR/$OUTFILE
+TimeoutStartSec=$START_TIMEOUT
 KillSignal=SIGINT
 TimeoutStopSec=30
 

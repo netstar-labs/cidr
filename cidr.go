@@ -109,27 +109,34 @@ func plusOneLess(hi, x netip.Addr) bool {
 }
 
 // mergeRanges sorts intervals by lo and coalesces overlapping or adjacent ones.
-// It never modifies rs, and the result shares no memory with it: the merge runs
-// on a scratch copy and the result is copied out, sized to the merged length
-// (up to allocator rounding) rather than pinning the possibly much larger input.
+// It never modifies rs, and the result shares no memory with it: the sort and
+// merge run in place on one private copy of rs. That copy is returned as is
+// (capacity clipped to its length) when the merge kept at least three quarters
+// of the intervals, since trimming would save little; otherwise it is copied to
+// a slice sized to the merged length (up to allocator rounding) so the result
+// does not pin the much larger input.
 func mergeRanges(rs []iprange) []iprange {
 	if len(rs) < 2 {
 		return slices.Clone(rs)
 	}
 	work := slices.Clone(rs)
 	slices.SortFunc(work, func(a, b iprange) int { return a.lo.Compare(b.lo) })
-	out := work[:1]
+	n := 1 // work[:n] is the merged prefix; n <= index of the next element read
 	for _, r := range work[1:] {
-		last := &out[len(out)-1]
+		last := &work[n-1]
 		if plusOneLess(last.hi, r.lo) { // gap: r starts strictly past last.hi+1
-			out = append(out, r)
+			work[n] = r
+			n++
 			continue
 		}
 		if last.hi.Less(r.hi) {
 			last.hi = r.hi
 		}
 	}
-	return slices.Clone(out)
+	if n >= len(work)*3/4 {
+		return work[:n:n]
+	}
+	return slices.Clone(work[:n])
 }
 
 // Set is an immutable IPv4/IPv6 membership set. The zero Set is a valid empty

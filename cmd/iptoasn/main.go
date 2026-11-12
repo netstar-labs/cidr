@@ -11,6 +11,10 @@
 //		iptoasn -in ip2asn-combined.tsv.gz        # convert a local (gzipped) TSV
 //		iptoasn -unrouted -country                # keep AS0 rows and prepend country
 //
+// The output file is replaced atomically and only when at least one row was
+// converted; on any failure (fetch, stall, corrupt input, zero rows) the
+// previous file is left untouched and the exit status is 1.
+//
 // The source is the tab-separated table published at
 // https://iptoasn.com/data/ (range_start, range_end, AS_number, country,
 // AS_description); AS0 "Not routed" rows are dropped unless -unrouted is set.
@@ -18,12 +22,9 @@ package main
 
 import (
 	"bufio"
-	"compress/gzip"
 	"flag"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
 	"net/netip"
 	"os"
 	"strconv"
@@ -31,6 +32,7 @@ import (
 	"time"
 
 	"github.com/netstar-labs/cidr"
+	"github.com/netstar-labs/cidr/internal/feedio"
 )
 
 const source = "https://iptoasn.com/data/ip2asn-%s.tsv.gz"
@@ -46,11 +48,11 @@ func main() {
 	family := flag.String("family", "combined", `iptoasn dataset: "v4", "v6", or "combined"`)
 	url := flag.String("url", "", "source URL (overrides -family)")
 	in := flag.String("in", "", "read a local TSV (optionally .gz) instead of fetching")
-	out := flag.String("o", "", "write to this file instead of stdout")
+	out := flag.String("o", "", `write to this file (atomically; "-" or empty is stdout)`)
 	unrouted := flag.Bool("unrouted", false, `include AS0 "Not routed" rows`)
 	output := flag.String("output", "asn", `output format: "asn" (<cidr> <ASN> <org>) or "country" (<cidr> <country>)`)
 	country := flag.Bool("country", false, "prepend the country code to the org field (asn output only)")
-	timeout := flag.Duration("timeout", 30*time.Second, "dial/response-header timeout for the fetch")
+	timeout := flag.Duration("timeout", 30*time.Second, "fetch timeout: dial/TLS/response-header limit, and the idle period after which a download that stops sending bytes fails")
 	flag.Parse()
 
 	if *version {
@@ -70,7 +72,7 @@ func main() {
 }
 
 func run(family, url, in, out string, timeout time.Duration, opts options) error {
-	// Source: a local file or an HTTP fetch.
+	// Source: a local file or an HTTP fetch. Opened before any output exists.
 	var src io.ReadCloser
 	if in != "" {
 		f, err := os.Open(in)
@@ -87,7 +89,7 @@ func run(family, url, in, out string, timeout time.Duration, opts options) error
 				return fmt.Errorf("unknown -family %q (want v4, v6, or combined)", family)
 			}
 		}
-		body, err := fetch(url, timeout)
+		body, err := feedio.Fetch(url, "iptoasn-cidr (+github.com/netstar-labs/cidr)", timeout, timeout)
 		if err != nil {
 			return err
 		}
@@ -96,38 +98,33 @@ func run(family, url, in, out string, timeout time.Duration, opts options) error
 	defer src.Close()
 
 	// Decompress if the payload is gzip (the fetched files always are; a local
-	// -in may be either).
-	r, err := maybeGunzip(src)
+	// -in may be either). A corrupt gzip is an error, never read as text.
+	r, err := feedio.MaybeGunzip(src)
 	if err != nil {
 		return err
 	}
 
-	// Destination: a file or stdout.
-	var w io.Writer = os.Stdout
-	if out != "" {
-		f, err := os.Create(out)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		w = f
-	}
-	bw := bufio.NewWriter(w)
-
-	st, err := convert(r, bw, opts)
+	// Destination: a temp file beside -o (published only on success) or stdout.
+	o, err := feedio.Create(out)
 	if err != nil {
 		return err
 	}
-	if err := bw.Flush(); err != nil {
+	defer o.Abort()
+
+	st, err := convert(r, o, opts)
+	if err != nil {
+		return err
+	}
+	if st.rows == 0 {
+		return fmt.Errorf("no usable rows (malformed=%d unrouted=%d); nothing published, previous output left untouched",
+			st.malformed, st.unrouted)
+	}
+	if err := o.Commit(); err != nil {
 		return err
 	}
 
-	dst := "stdout"
-	if out != "" {
-		dst = out
-	}
 	fmt.Fprintf(os.Stderr, "iptoasn: rows=%d prefixes=%d unrouted=%d malformed=%d -> %s\n",
-		st.rows, st.prefixes, st.unrouted, st.malformed, dst)
+		st.rows, st.prefixes, st.unrouted, st.malformed, o.Name())
 	return nil
 }
 
@@ -216,47 +213,4 @@ func convert(r io.Reader, w io.Writer, opts options) (stats, error) {
 		st.rows++
 	}
 	return st, sc.Err()
-}
-
-// fetch GETs url with dial/response-header deadlines but no whole-body timeout,
-// so a large download streams without being cut off mid-transfer.
-func fetch(url string, timeout time.Duration) (io.ReadCloser, error) {
-	client := &http.Client{
-		Transport: &http.Transport{
-			// A hand-built Transport has a nil Proxy, which silently ignores
-			// HTTPS_PROXY/HTTP_PROXY/NO_PROXY — unlike http.DefaultTransport.
-			Proxy:                 http.ProxyFromEnvironment,
-			DialContext:           (&net.Dialer{Timeout: timeout}).DialContext,
-			TLSHandshakeTimeout:   timeout,
-			ResponseHeaderTimeout: timeout,
-		},
-	}
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "iptoasn-cidr (+github.com/netstar-labs/cidr)")
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
-		return nil, fmt.Errorf("%s: %s", url, resp.Status)
-	}
-	return resp.Body, nil
-}
-
-// maybeGunzip wraps r in a gzip reader when the payload begins with the gzip
-// magic bytes, so both fetched (.gz) and plain local TSVs work.
-func maybeGunzip(r io.Reader) (io.Reader, error) {
-	br := bufio.NewReader(r)
-	magic, err := br.Peek(2)
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
-	if len(magic) == 2 && magic[0] == 0x1f && magic[1] == 0x8b {
-		return gzip.NewReader(br)
-	}
-	return br, nil
 }

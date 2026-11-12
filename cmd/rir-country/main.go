@@ -10,6 +10,12 @@
 //	rir-country -registry arin -o arin.cidr      # one registry
 //	rir-country -in arin.txt,ripencc.txt         # local files, comma-separated
 //
+// The output is replaced atomically and only when every registry that was read
+// contributed at least one record (a registry file is expected to start with its
+// version line, "2|..." or "2.3|..."; one that does not is counted malformed).
+// On any failure the previous file is left untouched and the exit status is 1.
+// Per-registry record counts are printed to stderr.
+//
 // The record format is "registry|cc|type|start|value|date|status[|opaque-id]".
 // For ipv4, value is an address *count* (not always a power of two, so a record
 // decomposes into several prefixes); for ipv6 it is a prefix length. Only
@@ -39,13 +45,10 @@ package main
 
 import (
 	"bufio"
-	"compress/gzip"
 	"flag"
 	"fmt"
 	"io"
 	"math/bits"
-	"net"
-	"net/http"
 	"net/netip"
 	"os"
 	"sort"
@@ -54,6 +57,7 @@ import (
 	"time"
 
 	"github.com/netstar-labs/cidr"
+	"github.com/netstar-labs/cidr/internal/feedio"
 )
 
 // The five RIR delegated-extended files. Every country dataset in circulation
@@ -92,9 +96,9 @@ func main() {
 	registry := flag.String("registry", "all", `registry: "all" or one of afrinic, apnic, arin, lacnic, ripencc`)
 	mode := flag.String("conflict", byDate, `conflict rule: "date" (later delegation wins) or "specific" (narrower source allocation wins)`)
 	in := flag.String("in", "", "comma-separated local delegated files instead of fetching")
-	out := flag.String("o", "", "write to this file instead of stdout")
+	out := flag.String("o", "", `write to this file (atomically; "-" or empty is stdout)`)
 	conflictLog := flag.String("conflict-log", "", "write every conflict to this file as TSV")
-	timeout := flag.Duration("timeout", 30*time.Second, "dial/response-header timeout")
+	timeout := flag.Duration("timeout", 30*time.Second, "fetch timeout: dial/TLS/response-header limit, and the idle period after which a download that stops sending bytes fails")
 	flag.Parse()
 
 	if *version {
@@ -137,6 +141,15 @@ type stats struct {
 	skipped    int // headers, summaries, asn rows, reserved/available, no country
 	conflicts  int // same prefix, differing country
 	unresolved int // conflicts the chosen rule could not separate
+	headers    int // version header lines seen (also counted in skipped)
+}
+
+// regStat is what one registry (or -in file basename) contributed.
+type regStat struct {
+	name      string
+	rows      int  // records accepted
+	malformed int  // malformed lines, plus one for each file lacking its version header
+	header    bool // every file under this name carried a version header line
 }
 
 func run(registry, mode, in, out, conflictLog string, timeout time.Duration) error {
@@ -144,32 +157,32 @@ func run(registry, mode, in, out, conflictLog string, timeout time.Duration) err
 	var st stats
 	var conflicts []conflict
 
+	// Fetch and parse everything before any output exists.
 	readers, err := openSources(registry, in, timeout)
 	if err != nil {
 		return err
 	}
-	for _, src := range readers {
-		err := collect(src.r, src.name, table, mode, &st, &conflicts)
-		src.close()
-		if err != nil {
-			return err
-		}
-	}
-
-	var w io.Writer = os.Stdout
-	if out != "" {
-		f, err := os.Create(out)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		w = f
-	}
-	bw := bufio.NewWriter(w)
-	if err := emit(table, bw, &st); err != nil {
+	regs, err := collectSources(readers, mode, table, &st, &conflicts)
+	if err != nil {
 		return err
 	}
-	if err := bw.Flush(); err != nil {
+	for _, r := range regs {
+		fmt.Fprintf(os.Stderr, "rir-country: %s rows=%d malformed=%d header=%t\n", r.name, r.rows, r.malformed, r.header)
+	}
+	if empty := emptyRegistries(regs); len(empty) > 0 {
+		return fmt.Errorf("no usable records from %s; nothing published, previous output left untouched",
+			strings.Join(empty, ", "))
+	}
+
+	o, err := feedio.Create(out)
+	if err != nil {
+		return err
+	}
+	defer o.Abort()
+	if err := emit(table, o, &st); err != nil {
+		return err
+	}
+	if err := o.Commit(); err != nil {
 		return err
 	}
 
@@ -180,14 +193,70 @@ func run(registry, mode, in, out, conflictLog string, timeout time.Duration) err
 	}
 	reportConflicts(os.Stderr, conflicts, conflictLog)
 
-	dst := "stdout"
-	if out != "" {
-		dst = out
-	}
 	fmt.Fprintf(os.Stderr,
 		"rir-country: registries=%d conflict=%s rows=%d prefixes=%d conflicts=%d unresolved=%d malformed=%d skipped=%d -> %s\n",
-		len(readers), mode, st.rows, st.prefixes, st.conflicts, st.unresolved, st.malformed, st.skipped, dst)
+		len(readers), mode, st.rows, st.prefixes, st.conflicts, st.unresolved, st.malformed, st.skipped, o.Name())
 	return nil
+}
+
+// collectSources parses every source into table and returns what each registry
+// contributed, in first-seen order. Sources sharing a name (the same -in
+// basename twice) are summed. A source with no version header line is not
+// trusted to be a delegated file: it counts one malformed line against its
+// registry. Each source is closed. Any read error aborts.
+func collectSources(srcs []source, mode string, table map[netip.Prefix]rec, st *stats, conflicts *[]conflict) ([]regStat, error) {
+	var regs []regStat
+	idx := map[string]int{}
+	for _, src := range srcs {
+		before := *st
+		err := collect(src.r, src.name, table, mode, st, conflicts)
+		src.close()
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", src.name, err)
+		}
+		i, ok := idx[src.name]
+		if !ok {
+			i = len(regs)
+			idx[src.name] = i
+			regs = append(regs, regStat{name: src.name, header: true})
+		}
+		r := &regs[i]
+		r.rows += st.rows - before.rows
+		r.malformed += st.malformed - before.malformed
+		if st.headers == before.headers {
+			st.malformed++
+			r.malformed++
+			r.header = false
+		}
+	}
+	return regs, nil
+}
+
+// emptyRegistries names the registries that were read but contributed no record.
+func emptyRegistries(regs []regStat) []string {
+	var out []string
+	for _, r := range regs {
+		if r.rows == 0 {
+			out = append(out, r.name)
+		}
+	}
+	return out
+}
+
+// isVersionHeader reports whether line is the delegated-file version line
+// ("2|registry|serial|records|startdate|enddate|UTCoffset", "2.3|arin|...").
+// Record lines start with the registry name, never a number.
+func isVersionHeader(line string) bool {
+	p := strings.Split(strings.TrimSpace(line), "|")
+	if len(p) < 7 || p[0] == "" || p[0][0] != '2' {
+		return false
+	}
+	switch p[2] {
+	case "ipv4", "ipv6", "asn":
+		return false
+	}
+	_, err := strconv.ParseFloat(strings.TrimRight(p[0], "abcdefghijklmnopqrstuvwxyz"), 64)
+	return err == nil
 }
 
 // collect parses one delegated file into table, resolving any prefix already
@@ -196,6 +265,11 @@ func collect(r io.Reader, name string, table map[netip.Prefix]rec, mode string, 
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for sc.Scan() {
+		if isVersionHeader(sc.Text()) {
+			st.headers++
+			st.skipped++
+			continue
+		}
 		lo, hi, e, ok, malformed := parseLine(sc.Text(), name)
 		if !ok {
 			if malformed {
@@ -395,18 +469,17 @@ type conflict struct {
 }
 
 func writeConflictLog(path string, conflicts []conflict) error {
-	f, err := os.Create(path)
+	o, err := feedio.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	bw := bufio.NewWriter(f)
-	fmt.Fprintln(bw, "prefix\tcc_a\treg_a\tdate_a\tcc_b\treg_b\tdate_b\twinner\trule\tresolved")
+	defer o.Abort()
+	fmt.Fprintln(o, "prefix\tcc_a\treg_a\tdate_a\tcc_b\treg_b\tdate_b\twinner\trule\tresolved")
 	for _, c := range conflicts {
-		fmt.Fprintf(bw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%t\n",
+		fmt.Fprintf(o, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%t\n",
 			c.prefix, c.a.cc, c.a.reg, c.a.date, c.b.cc, c.b.reg, c.b.date, c.winner, c.mode, c.resolved)
 	}
-	return bw.Flush()
+	return o.Commit()
 }
 
 // reportConflicts prints conflicts to stderr. It prints at most stderrConflicts
@@ -452,8 +525,13 @@ func openSources(registry, in string, timeout time.Duration) ([]source, error) {
 				closeAll(out)
 				return nil, err
 			}
-			r, closeFn := maybeGunzip(f)
-			out = append(out, source{name: baseName(path), r: r, close: closeFn})
+			r, err := feedio.MaybeGunzip(f)
+			if err != nil {
+				f.Close()
+				closeAll(out)
+				return nil, fmt.Errorf("%s: %w", path, err)
+			}
+			out = append(out, source{name: baseName(path), r: r, close: func() { f.Close() }})
 		}
 		if len(out) == 0 {
 			return nil, fmt.Errorf("-in named no readable files")
@@ -466,13 +544,18 @@ func openSources(registry, in string, timeout time.Duration) ([]source, error) {
 		names = []string{registry}
 	}
 	for _, name := range names {
-		body, err := fetch(sources[name], timeout)
+		body, err := feedio.Fetch(sources[name], "rir-country-cidr (+github.com/netstar-labs/cidr)", timeout, timeout)
 		if err != nil {
 			closeAll(out)
 			return nil, err
 		}
-		r, closeFn := maybeGunzip(body)
-		out = append(out, source{name: name, r: r, close: closeFn})
+		r, err := feedio.MaybeGunzip(body)
+		if err != nil {
+			body.Close()
+			closeAll(out)
+			return nil, fmt.Errorf("%s: %w", name, err)
+		}
+		out = append(out, source{name: name, r: r, close: func() { body.Close() }})
 	}
 	return out, nil
 }
@@ -488,42 +571,4 @@ func baseName(path string) string {
 		path = path[i+1:]
 	}
 	return strings.TrimSuffix(strings.TrimSuffix(path, ".gz"), ".txt")
-}
-
-// maybeGunzip wraps rc in a gzip reader when the payload is gzipped.
-func maybeGunzip(rc io.ReadCloser) (io.Reader, func()) {
-	br := bufio.NewReader(rc)
-	if magic, _ := br.Peek(2); len(magic) == 2 && magic[0] == 0x1f && magic[1] == 0x8b {
-		zr, err := gzip.NewReader(br)
-		if err == nil {
-			return zr, func() { zr.Close(); rc.Close() }
-		}
-	}
-	return br, func() { rc.Close() }
-}
-
-// fetch GETs url with dial/response-header deadlines but no whole-body timeout.
-func fetch(url string, timeout time.Duration) (io.ReadCloser, error) {
-	client := &http.Client{Transport: &http.Transport{
-		// A hand-built Transport has a nil Proxy, which silently ignores
-		// HTTPS_PROXY/HTTP_PROXY/NO_PROXY — unlike http.DefaultTransport.
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           (&net.Dialer{Timeout: timeout}).DialContext,
-		TLSHandshakeTimeout:   timeout,
-		ResponseHeaderTimeout: timeout,
-	}}
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "rir-country-cidr (+github.com/netstar-labs/cidr)")
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
-		return nil, fmt.Errorf("%s: %s", url, resp.Status)
-	}
-	return resp.Body, nil
 }

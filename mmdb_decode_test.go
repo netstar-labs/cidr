@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
 	"testing"
 )
 
@@ -309,5 +311,140 @@ func TestDecodeMMDBBudget(t *testing.T) {
 	}
 	if got := newBudget(1 << 30).left; got != 1<<25 {
 		t.Errorf("newBudget(1<<30) = %d, want the 1<<25 ceiling", got)
+	}
+}
+
+// Fixed-width types accept only their widths: uint16 up to 2 bytes, uint32 up to 4,
+// uint64 up to 8 (shorter is the big-endian value with leading zeros), int32 up to 4,
+// uint128 up to 16, double exactly 8, float exactly 4, boolean 0 or 1 (and no payload).
+// An oversize value is rejected as a width error, not silently truncated or accepted.
+func TestDecodeMMDBFixedWidths(t *testing.T) {
+	pad := func(n int) []byte { return bytes.Repeat([]byte{0x01}, n) } // payload bytes
+	mk := func(typ, size int, payload []byte) []byte { return append(hdr(typ, size), payload...) }
+	cases := []struct {
+		name string
+		buf  []byte
+		want any // nil: want errWidth
+	}{
+		{"uint16 size 0", mk(5, 0, nil), uint64(0)},
+		{"uint16 size 2", mk(5, 2, []byte{1, 2}), uint64(0x0102)},
+		{"uint16 size 3", mk(5, 3, pad(3)), nil},
+		{"uint32 size 4", mk(6, 4, []byte{1, 2, 3, 4}), uint64(0x01020304)},
+		{"uint32 size 5", mk(6, 5, pad(5)), nil},
+		{"uint32 size 8", mk(6, 8, pad(8)), nil},
+		{"uint64 size 8", mk(9, 8, []byte{1, 2, 3, 4, 5, 6, 7, 8}), uint64(0x0102030405060708)},
+		{"uint64 size 9", mk(9, 9, pad(9)), nil},
+		{"uint64 size 30", mk(9, 30, pad(30)), nil},
+		{"int32 size 4", mk(8, 4, []byte{0xff, 0xff, 0xff, 0xff}), int32(-1)},
+		{"int32 size 5", mk(8, 5, pad(5)), nil},
+		{"uint128 size 16", mk(10, 16, pad(16)), new(big.Int).SetBytes(pad(16))},
+		{"uint128 size 17", mk(10, 17, pad(17)), nil},
+		{"double size 8", mk(3, 8, []byte{0x3f, 0xf0, 0, 0, 0, 0, 0, 0}), float64(1)},
+		{"double size 7", mk(3, 7, pad(8)), nil}, // enough bytes follow, but the size is wrong
+		{"double size 9", mk(3, 9, pad(9)), nil},
+		{"double size 0", mk(3, 0, pad(8)), nil},
+		{"float size 4", mk(15, 4, []byte{0x3f, 0x80, 0, 0}), float32(1)},
+		{"float size 3", mk(15, 3, pad(4)), nil},
+		{"float size 5", mk(15, 5, pad(5)), nil},
+		{"float size 0", mk(15, 0, pad(4)), nil},
+		{"bool false", mk(14, 0, nil), false},
+		{"bool true", mk(14, 1, nil), true},
+		{"bool size 2", mk(14, 2, pad(2)), nil},
+		{"bool size 29", mk(14, 29, append([]byte{0}, pad(29)...)), nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			v, off, err := decodeTest(c.buf, 0, 0, 0)
+			if c.want == nil {
+				if !errors.Is(err, errWidth) {
+					t.Fatalf("got (%v, %v), want errWidth", v, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if fmt.Sprint(v) != fmt.Sprint(c.want) || fmt.Sprintf("%T", v) != fmt.Sprintf("%T", c.want) {
+				t.Errorf("got %v (%T), want %v (%T)", v, v, c.want, c.want)
+			}
+			if off > len(c.buf) {
+				t.Errorf("offset %d past the buffer (%d)", off, len(c.buf))
+			}
+		})
+	}
+	// A right-sized but truncated payload is still a truncation, not a width error.
+	for _, buf := range [][]byte{mk(3, 8, pad(7)), mk(15, 4, pad(3)), mk(6, 4, pad(3))} {
+		if _, _, err := decodeTest(buf, 0, 0, 0); !errors.Is(err, errTrunc) {
+			t.Errorf("truncated %x: err = %v, want errTrunc", buf, err)
+		}
+	}
+}
+
+// The budget arithmetic must not wrap a 32-bit int: these boundary cases go through the
+// helpers with values that overflow int32 (and, for the 64-bit extremes, int64), so the
+// 386 CI job exercises them for real.
+func TestBudgetArithmeticOverflowSafe(t *testing.T) {
+	for _, n := range []int{1 << 29, 1 << 30, math.MaxInt32, math.MaxInt} {
+		if got := newBudget(n).left; got != maxDecodeCost {
+			t.Errorf("newBudget(%d) = %d, want the ceiling %d", n, got, maxDecodeCost)
+		}
+	}
+	for n, want := range map[int]int{-1: minDecodeCost, 0: minDecodeCost, 1 << 18: minDecodeCost, 1<<18 + 1: 4<<18 + 4,
+		1<<23 - 1: 4<<23 - 4, 1 << 23: maxDecodeCost} {
+		if got := newBudget(n).left; got != want {
+			t.Errorf("newBudget(%d) = %d, want %d", n, got, want)
+		}
+	}
+	// charge: a huge n fails and does not wrap the remaining allowance back positive
+	for _, n := range []int{maxDecodeCost + 1, 1 << 30, math.MaxInt32, math.MaxInt} {
+		b := &budget{left: maxDecodeCost}
+		if err := b.charge(n); err != errBudget {
+			t.Errorf("charge(%d) err = %v, want errBudget", n, err)
+		}
+		if b.left >= 0 {
+			t.Errorf("charge(%d) left = %d, want negative", n, b.left)
+		}
+		if err := b.charge(1); err != errBudget { // a failed budget stays failed
+			t.Errorf("after charge(%d): charge(1) err = %v, want errBudget", n, err)
+		}
+	}
+	// chargeEach: counts whose product exceeds MaxInt32 (45M*48 = 2.16e9) or MaxInt
+	for _, c := range []struct{ count, unit int }{
+		{45_000_000, mapEntryCost}, {math.MaxInt32, elemCost}, {math.MaxInt / 2, mapEntryCost}, {math.MaxInt, 2},
+	} {
+		b := &budget{left: maxDecodeCost}
+		if err := b.chargeEach(c.count, c.unit); err != errBudget {
+			t.Errorf("chargeEach(%d, %d) err = %v, want errBudget", c.count, c.unit, err)
+		}
+	}
+	// and exact fits still charge exactly count*unit
+	b := &budget{left: 1000}
+	if err := b.chargeEach(20, 48); err != nil || b.left != 40 {
+		t.Errorf("chargeEach(20, 48): err = %v, left = %d, want nil, 40", err, b.left)
+	}
+	if err := b.chargeEach(0, 48); err != nil || b.left != 40 {
+		t.Errorf("chargeEach(0, 48): err = %v, left = %d", err, b.left)
+	}
+	if err := b.chargeEach(1, 41); err != errBudget {
+		t.Errorf("chargeEach(1, 41) with 40 left: err = %v", err)
+	}
+}
+
+// A map or array declaring 45M entries (45M*48 = 2.16e9 map units, past MaxInt32) in a
+// 45 MB buffer: the declared count passes the size <= remaining-bytes test, so the charge
+// is what stops it, and it must stop it before anything is allocated.
+func TestDecodeMMDBBudgetCountTimesCostPastInt32(t *testing.T) {
+	const n = 45_000_000
+	body := make([]byte, n)
+	for _, typ := range []int{7, 11} {
+		buf := append(hdr(typ, n), body...)
+		var err error
+		got := allocDelta(func() { _, _, err = decodeMMDB(buf, 0, 0, 0, &budget{left: maxDecodeCost}) })
+		if err != errBudget {
+			t.Errorf("type %d: err = %v, want errBudget", typ, err)
+		}
+		if got > 8<<20 {
+			t.Errorf("type %d: allocated %d bytes before failing", typ, got)
+		}
 	}
 }

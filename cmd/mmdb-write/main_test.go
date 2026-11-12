@@ -50,7 +50,7 @@ func TestWriteMMDB(t *testing.T) {
 	defer os.Remove(f.Name())
 
 	var buf bytes.Buffer
-	n, err := writeMMDB(&buf, entries, "Test-DB", "test database", 0, 6, 24, false)
+	n, _, err := writeMMDB(&buf, entries, "Test-DB", "test database", 0, 6, 24, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestSpecRoundTrip(t *testing.T) {
 	defer os.Remove(f.Name())
 
 	var buf bytes.Buffer
-	if _, err := writeMMDB(&buf, entries, "GeoLite2-ASN", "test", 0, 6, 24, false); err != nil {
+	if _, _, err := writeMMDB(&buf, entries, "GeoLite2-ASN", "test", 0, 6, 24, false); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(f.Name(), buf.Bytes(), 0644); err != nil {
@@ -172,7 +172,7 @@ func TestCountryMMDB(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	n, err := writeMMDB(&buf, entries, "GeoLite2-Country", "test country db", 0, 6, 24, true)
+	n, _, err := writeMMDB(&buf, entries, "GeoLite2-Country", "test country db", 0, 6, 24, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,17 +253,19 @@ func TestCountryMMDB(t *testing.T) {
 		}
 	}
 
-	// Unknown country code should be skipped
-	unknownSpec := "10.0.0.0/8 XX\n"
-	uEntries, _ := cidr.ParseSpec(strings.NewReader(unknownSpec))
+	// An unknown country code is skipped, and a spec with nothing else to insert
+	// is an error that writes nothing.
+	uEntries, _ := cidr.ParseSpec(strings.NewReader("10.0.0.0/8 XX\n"))
 	var ubuf bytes.Buffer
-	un, err := writeMMDB(&ubuf, uEntries, "GeoLite2-Country", "test", 0, 6, 24, true)
-	if err != nil {
-		t.Fatal(err)
+	_, tl, err := writeMMDB(&ubuf, uEntries, "GeoLite2-Country", "test", 0, 6, 24, true)
+	if err == nil {
+		t.Fatal("nothing inserted: want an error")
 	}
-	if un == 0 {
-		// If we wrote zero bytes, that's OK (no valid entries)
-		// Just check no crash happened
+	if ubuf.Len() != 0 {
+		t.Errorf("wrote %d bytes for an empty database", ubuf.Len())
+	}
+	if tl.unknownCountry != 1 || tl.inserted != 0 {
+		t.Errorf("tally = %+v, want one unknown country", tl)
 	}
 }
 
@@ -291,7 +293,7 @@ func TestCountryPseudoCodesSkipped(t *testing.T) {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	if _, err := writeMMDB(&buf, entries, "GeoLite2-Country", "test", 0, 6, 24, true); err != nil {
+	if _, _, err := writeMMDB(&buf, entries, "GeoLite2-Country", "test", 0, 6, 24, true); err != nil {
 		t.Fatal(err)
 	}
 	reader, err := maxminddb.OpenBytes(buf.Bytes())
@@ -326,7 +328,7 @@ func TestCountryAmericanSamoa(t *testing.T) {
 		t.Fatalf("parsed = %+v, want one entry with Org=AS", entries)
 	}
 	var buf bytes.Buffer
-	if _, err := writeMMDB(&buf, entries, "GeoLite2-Country", "test", 0, 6, 24, true); err != nil {
+	if _, _, err := writeMMDB(&buf, entries, "GeoLite2-Country", "test", 0, 6, 24, true); err != nil {
 		t.Fatal(err)
 	}
 	reader, err := maxminddb.OpenBytes(buf.Bytes())

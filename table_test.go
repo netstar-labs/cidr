@@ -130,3 +130,68 @@ func BenchmarkTableLookup(b *testing.B) {
 	}
 	_ = s
 }
+
+// TestTableDefaultRoute: a lookup answered only by 0.0.0.0/0 or ::/0 (the
+// zero-length prefix, the last candidate in the winner scan) while longer
+// prefixes are nested elsewhere in the family.
+func TestTableDefaultRoute(t *testing.T) {
+	type q struct {
+		addr string
+		want int
+		ok   bool
+	}
+	for _, tc := range []struct {
+		name     string
+		prefixes map[string]int
+		queries  []q
+	}{
+		{"v4 nested", map[string]int{
+			"0.0.0.0/0": 1, "10.0.0.0/8": 2, "10.1.0.0/16": 3, "10.1.1.0/24": 4,
+		}, []q{
+			{"0.0.0.0", 1, true}, {"9.255.255.255", 1, true}, {"11.0.0.0", 1, true},
+			{"255.255.255.255", 1, true}, {"8.8.8.8", 1, true},
+			{"10.0.0.0", 2, true}, {"10.2.0.0", 2, true}, {"10.255.255.255", 2, true},
+			{"10.1.0.0", 3, true}, {"10.1.2.0", 3, true},
+			{"10.1.1.0", 4, true}, {"10.1.1.255", 4, true},
+		}},
+		{"v4 default only", map[string]int{"0.0.0.0/0": 9}, []q{
+			{"0.0.0.0", 9, true}, {"1.2.3.4", 9, true}, {"255.255.255.255", 9, true},
+		}},
+		{"v6 nested", map[string]int{
+			"::/0": 1, "2001:db8::/32": 2, "2001:db8:1::/48": 3, "2001:db8:1:1::/64": 4,
+		}, []q{
+			{"::", 1, true}, {"::1", 1, true}, {"2001:db7:ffff:ffff:ffff:ffff:ffff:ffff", 1, true},
+			{"2001:db9::", 1, true}, {"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", 1, true},
+			{"2001:db8::", 2, true}, {"2001:db8:2::1", 2, true},
+			{"2001:db8:1::", 3, true}, {"2001:db8:1:2::", 3, true},
+			{"2001:db8:1:1::5", 4, true},
+		}},
+		{"v6 default only", map[string]int{"::/0": 9}, []q{
+			{"::", 9, true}, {"2001:db8::1", 9, true}, {"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", 9, true},
+		}},
+		{"both families", map[string]int{
+			"0.0.0.0/0": 1, "10.0.0.0/8": 2, "::/0": 5, "2001:db8::/32": 6,
+		}, []q{
+			{"8.8.8.8", 1, true}, {"10.1.1.1", 2, true}, {"2600::1", 5, true}, {"2001:db8::1", 6, true},
+		}},
+		{"only the other family", map[string]int{"10.0.0.0/8": 2}, []q{
+			{"2600::1", 0, false}, {"11.0.0.0", 0, false},
+		}},
+	} {
+		// map iteration randomises the add order, which also exercises the
+		// order-independence of the winner choice
+		b := NewTableBuilder[int]()
+		for p, v := range tc.prefixes {
+			if err := b.AddPrefix(p, v); err != nil {
+				t.Fatal(err)
+			}
+		}
+		tab := b.Freeze()
+		for _, c := range tc.queries {
+			got, ok := tab.Lookup(netip.MustParseAddr(c.addr))
+			if got != c.want || ok != c.ok {
+				t.Errorf("%s: Lookup(%s) = %d,%v, want %d,%v", tc.name, c.addr, got, ok, c.want, c.ok)
+			}
+		}
+	}
+}

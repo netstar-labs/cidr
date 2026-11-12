@@ -28,6 +28,13 @@ DESC="iptoasn MMDB generator — fetches iptoasn.com -> IP + Country MMDBs"
 STAGEDIR=/var/lib/cidr
 ASN_OUTFILE=iptoasn-asn.mmdb
 COUNTRY_OUTFILE=iptoasn-country.mmdb
+ASN_SPEC=iptoasn-asn.spec.tmp     # intermediate cidr specs, in STAGEDIR, removed after each run
+COUNTRY_SPEC=iptoasn-country.spec.tmp
+# TimeoutStartSec: Type=oneshot has no start timeout by default, so a hung
+# download (the fetch has no whole-body deadline) would block the timer forever.
+# This unit fetches the (small, compressed) iptoasn feed twice and compiles two MMDBs;
+# 1h is generous for that and still frees the timer in time for tomorrow's run.
+START_TIMEOUT=1h
 TIMER="*-*-* 02:30:00 UTC"        # daily, shortly after iptoasn refreshes
 # also build the iptoasn binary for the pipeline
 PIPE_BINARY=iptoasn
@@ -85,8 +92,20 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c '$BIN/$PIPE_BINARY -family combined | $BIN/$BINARY -description "iptoasn.com ASN" -o $STAGEDIR/$ASN_OUTFILE'
-ExecStart=/bin/sh -c '$BIN/$PIPE_BINARY -family combined -output country | $BIN/$BINARY -description "iptoasn.com Country" -db-type GeoLite2-Country -o $STAGEDIR/$COUNTRY_OUTFILE'
+# Each database is built in stages, one command per ExecStart= line. systemd
+# runs the lines in order and stops at the first one that fails, so no shell
+# pipeline (and no pipefail, which dash lacks) is needed: a truncated download
+# fails iptoasn, mmdb-write never runs, and the live database is not touched.
+# The live file is replaced only by the final atomic mv (same directory).
+# ExecStopPost= removes the temp files on success and on every failure path.
+ExecStart=$BIN/$PIPE_BINARY -family combined -o $STAGEDIR/$ASN_SPEC
+ExecStart=$BIN/$BINARY -in $STAGEDIR/$ASN_SPEC -description "iptoasn.com ASN" -o $STAGEDIR/$ASN_OUTFILE.new
+ExecStart=/bin/mv -f $STAGEDIR/$ASN_OUTFILE.new $STAGEDIR/$ASN_OUTFILE
+ExecStart=$BIN/$PIPE_BINARY -family combined -output country -o $STAGEDIR/$COUNTRY_SPEC
+ExecStart=$BIN/$BINARY -in $STAGEDIR/$COUNTRY_SPEC -description "iptoasn.com Country" -db-type GeoLite2-Country -o $STAGEDIR/$COUNTRY_OUTFILE.new
+ExecStart=/bin/mv -f $STAGEDIR/$COUNTRY_OUTFILE.new $STAGEDIR/$COUNTRY_OUTFILE
+ExecStopPost=/bin/rm -f $STAGEDIR/$ASN_SPEC $STAGEDIR/$COUNTRY_SPEC $STAGEDIR/$ASN_OUTFILE.new $STAGEDIR/$COUNTRY_OUTFILE.new
+TimeoutStartSec=$START_TIMEOUT
 KillSignal=SIGINT
 TimeoutStopSec=120
 
@@ -142,7 +161,7 @@ install -m 0755 "$BINARY" "$BIN/$BINARY"
 echo "install: binary -> $BIN/$BINARY"
 
 if [ "$MODE" = generator ]; then
-    install -m 0755 "$PIPE_BINARY" "$BIN/$PIPE_BINARY" 2>/dev/null || true
+    install -m 0755 "$PIPE_BINARY" "$BIN/$PIPE_BINARY"
     echo "install: binary -> $BIN/$PIPE_BINARY"
     mkdir -p "$STAGEDIR"
     systemctl stop "$TIMER" 2>/dev/null || true

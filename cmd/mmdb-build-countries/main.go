@@ -40,12 +40,14 @@ var (
 )
 
 type continentInfo struct {
-	GeonameID uint              `json:"geoname_id"`
+	GeonameID uint              `json:"geoname_id,omitempty"`
 	Names     map[string]string `json:"names"`
 }
 
+// countryInfo.GeonameID is omitted when unknown (0) rather than written as 0:
+// 0 is not a GeoNames id, and readers cannot tell it from a real one.
 type countryInfo struct {
-	GeonameID         uint              `json:"geoname_id"`
+	GeonameID         uint              `json:"geoname_id,omitempty"`
 	Names             map[string]string `json:"names"`
 	ContinentCode     string            `json:"continent_code"`
 	IsInEuropeanUnion bool              `json:"is_in_european_union"`
@@ -59,6 +61,12 @@ type output struct {
 // Some territories are not assigned to a continent in Wikidata,
 // so we provide a fallback mapping.
 var continentFallback = map[string]string{
+	// AC, TA and CQ are ISO 3166 exceptional reservations (subdivisions of Saint
+	// Helena, Ascension and Tristan da Cunha, and of Guernsey), not GeoNames
+	// countries: GeoLite2 has no records for them, so there is nothing to copy.
+	"AC": "AF", // Ascension Island
+	"TA": "AF", // Tristan da Cunha
+	"CQ": "EU", // Sark
 	"AX": "EU", // Åland Islands
 	"CC": "OC", // Cocos (Keeling) Islands
 	"CX": "OC", // Christmas Island
@@ -335,8 +343,32 @@ func pickContinent(conts map[string]bool) string {
 	return slices.Sorted(maps.Keys(conts))[0]
 }
 
+// missingFields lists the countries that lack a geoname_id, a continent (empty or
+// not in continents) or an en name, one "CODE: what" string each, sorted.
+func missingFields(countries map[string]countryInfo, continents map[string]continentInfo) []string {
+	var out []string
+	for _, code := range sortedKeys(countries) {
+		c := countries[code]
+		var what []string
+		if c.GeonameID == 0 {
+			what = append(what, "geoname_id")
+		}
+		if _, ok := continents[c.ContinentCode]; !ok {
+			what = append(what, fmt.Sprintf("continent (%q)", c.ContinentCode))
+		}
+		if c.Names["en"] == "" {
+			what = append(what, "en name")
+		}
+		if len(what) > 0 {
+			out = append(out, code+": "+strings.Join(what, ", "))
+		}
+	}
+	return out
+}
+
 func main() {
 	version := flag.Bool("version", false, "print version and exit")
+	allowMissing := flag.Bool("allow-missing", false, "write the file even if a country lacks a geoname_id, continent or en name (the geoname_id is then omitted)")
 	wdEndpoint := flag.String("wikidata-url", "https://query.wikidata.org/sparql", "Wikidata SPARQL endpoint URL")
 	out := flag.String("o", "cmd/mmdb-write/data/countries.json", "output JSON")
 	flag.Parse()
@@ -356,6 +388,15 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
+	}
+
+	if missing := missingFields(countries, continents); len(missing) > 0 {
+		fmt.Fprintf(os.Stderr, "%d countries lack a geoname_id, continent or en name:\n  %s\n",
+			len(missing), strings.Join(missing, "\n  "))
+		if !*allowMissing {
+			fmt.Fprintln(os.Stderr, "error: not writing", *out, "(use -allow-missing to write it anyway)")
+			os.Exit(1)
+		}
 	}
 
 	sorted := output{

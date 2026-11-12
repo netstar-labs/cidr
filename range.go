@@ -8,10 +8,13 @@ import (
 
 // AddRange adds the inclusive address interval [lo, hi] to the membership set.
 // Both ends must be the same family and lo <= hi; an invalid range is ignored.
+// A zone on either end is ignored.
 // This is the natural entry point for range-based feeds (start/end columns)
 // such as iptoasn.com or the RIR delegated files.
 func (b *Builder) AddRange(lo, hi netip.Addr) {
-	lo, hi = lo.Unmap(), hi.Unmap()
+	// Zones are dropped: queries strip them, so a zoned bound would sort after
+	// the plain address and the range's first address would never match.
+	lo, hi = lo.Unmap().WithZone(""), hi.Unmap().WithZone("")
 	if !validRange(lo, hi) {
 		return
 	}
@@ -52,7 +55,7 @@ func RangePrefixes(lo, hi netip.Addr) []netip.Prefix {
 // (folding millions of ranges) to avoid a fresh allocation per call;
 // RangePrefixes is the dst==nil convenience wrapper.
 func AppendRangePrefixes(dst []netip.Prefix, lo, hi netip.Addr) []netip.Prefix {
-	lo, hi = lo.Unmap(), hi.Unmap()
+	lo, hi = lo.Unmap().WithZone(""), hi.Unmap().WithZone("")
 	if !validRange(lo, hi) {
 		return dst
 	}
