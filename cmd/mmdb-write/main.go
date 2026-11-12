@@ -20,8 +20,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"net"
+	"net/netip"
 	"os"
+	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -116,32 +121,131 @@ func run(in, out, dbType, description string, buildEpoch int64, ipVersion, recor
 		return errors.New("empty spec (no valid entries)")
 	}
 
-	var w io.Writer = os.Stdout
-	if out != "" {
-		f, err := os.Create(out)
+	isCountry := strings.Contains(dbType, "Country")
+	var (
+		n  int64
+		tl tally
+	)
+	build := func(w io.Writer) error {
+		bw := bufio.NewWriter(w)
+		var err error
+		n, tl, err = writeMMDB(bw, entries, dbType, description, buildEpoch, ipVersion, recordSize, isCountry)
 		if err != nil {
 			return err
 		}
-		defer f.Close()
-		w = f
-	}
-	bw := bufio.NewWriter(w)
-
-	isCountry := strings.Contains(dbType, "Country")
-	n, err := writeMMDB(bw, entries, dbType, description, buildEpoch, ipVersion, recordSize, isCountry)
-	if err != nil {
-		return err
-	}
-	if err := bw.Flush(); err != nil {
-		return err
+		return bw.Flush()
 	}
 
 	dst := "stdout"
-	if out != "" {
+	var werr error
+	if out == "" {
+		werr = build(os.Stdout)
+	} else {
 		dst = out
+		werr = writeFileAtomic(out, build)
 	}
-	fmt.Fprintf(os.Stderr, "mmdb-write: entries=%d bytes=%d -> %s\n", len(entries), n, dst)
+	if werr != nil {
+		return werr
+	}
+
+	if w := tl.asnWarning(isCountry); w != "" {
+		fmt.Fprintf(os.Stderr, "mmdb-write: warning: %s\n", w)
+	}
+	fmt.Fprintf(os.Stderr, "mmdb-write: %s bytes=%d -> %s\n", tl, n, dst)
 	return nil
+}
+
+// writeFileAtomic writes the output of write to path so that a failure at any
+// point leaves a previous file at path untouched: it writes a temporary file in
+// the same directory (the same filesystem, so the rename is atomic), fsyncs it,
+// and renames it over path only on success. A pre-existing file's permission bits
+// are kept; a new file gets 0644.
+func writeFileAtomic(path string, write func(w io.Writer) error) (err error) {
+	// A symlinked target is followed, so the rename replaces the file it points
+	// at rather than the link itself.
+	if real, rerr := filepath.EvalSymlinks(path); rerr == nil {
+		path = real
+	}
+	mode := os.FileMode(0o644)
+	if st, serr := os.Stat(path); serr == nil {
+		if !st.Mode().IsRegular() {
+			// A device, FIFO or other special file (e.g. -o /dev/null) cannot be
+			// replaced by rename without destroying it: write through it instead.
+			f, oerr := os.OpenFile(path, os.O_WRONLY, 0)
+			if oerr != nil {
+				return oerr
+			}
+			if err = write(f); err != nil {
+				f.Close()
+				return err
+			}
+			return f.Close()
+		}
+		mode = st.Mode().Perm()
+	}
+	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp*")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			f.Close()
+			os.Remove(f.Name())
+		}
+	}()
+	if err = write(f); err != nil {
+		return err
+	}
+	if err = f.Chmod(mode); err != nil {
+		return err
+	}
+	if err = f.Sync(); err != nil {
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), path)
+}
+
+// tally counts what writeMMDB did with each spec entry: how many it inserted and
+// how many it skipped, by reason.
+type tally struct {
+	inserted         int
+	nonZeroASN       int // inserted records with ASN != 0 (ASN mode)
+	unparseable      int // prefix does not round-trip through net.ParseCIDR
+	pseudoCode       int // country mode: EU, AP, ZZ, Unknown or empty
+	unknownCountry   int // country mode: code absent from the dataset
+	unknownContinent int // country mode: the country's continent is absent from the dataset
+	aliased          int // mmdbwriter refuses it (2001::/32, 2002::/16, ::ffff:0:0/96 alias IPv4)
+}
+
+func (t tally) String() string {
+	return fmt.Sprintf("inserted=%d skipped: unparseable=%d pseudo-code=%d unknown-country=%d unknown-continent=%d aliased=%d",
+		t.inserted, t.unparseable, t.pseudoCode, t.unknownCountry, t.unknownContinent, t.aliased)
+}
+
+// asnWarning returns a warning when an ASN-mode database holds only ASN 0
+// records, which means the input was a country/function spec, not an ASN one.
+func (t tally) asnWarning(isCountry bool) string {
+	if isCountry || t.inserted == 0 || t.nonZeroASN > 0 {
+		return ""
+	}
+	return fmt.Sprintf("all %d inserted records have ASN 0; input looks like a country/function spec; use -db-type GeoLite2-Country (or another type containing \"Country\")", t.inserted)
+}
+
+// maxWarnings caps the per-entry warnings printed for one run; the tally counts the rest.
+const maxWarnings = 10
+
+// treeDepth is the depth in the search tree at which Insert places p in an IPv6
+// tree: an IPv4 prefix lives under ::/96, so it sits 96 levels deeper than its
+// length. Comparing raw Bits() would put "::/48" (an IPv6 prefix that covers the
+// whole IPv4 subtree) after "10.0.0.0/8".
+func treeDepth(p netip.Prefix) int {
+	if p.Addr().Is4() {
+		return p.Bits() + 96
+	}
+	return p.Bits()
 }
 
 // writeMMDB compiles a cidr spec into a MaxMind DB and writes it to w.
@@ -150,7 +254,21 @@ func run(in, out, dbType, description string, buildEpoch int64, ipVersion, recor
 // GeoLite2-Country-style record (continent + country + registered_country).
 // registered_country mirrors country (IPtoASN carries a single country per
 // range), and non-country pseudo-codes (EU, AP, ZZ, Unknown, empty) are skipped.
-func writeMMDB(w io.Writer, entries []cidr.SpecEntry, dbType, description string, buildEpoch int64, ipVersion, recordSize int, isCountry bool) (int64, error) {
+// A country with no geoname_id (0) is written without one.
+//
+// mmdbwriter inserts with replace semantics: a prefix inserted after a covering
+// one carves its range out of it, but a covering prefix inserted after a nested
+// one erases it. The library answers longest-prefix-first, so entries are
+// inserted shortest-first (by treeDepth; stable, so of equal prefixes the last in
+// the spec wins, as in the library). Three families remain divergent by
+// mmdbwriter's design: prefixes of ::/96 or shorter (they cover the IPv4
+// subtree), and the networks that alias it (2001::/32, 2002::/16,
+// ::ffff:0:0/96), which are skipped or write through into the IPv4 subtree.
+//
+// It returns the bytes written and what it did with each entry. When nothing was
+// inserted it writes nothing and returns an error.
+func writeMMDB(w io.Writer, entries []cidr.SpecEntry, dbType, description string, buildEpoch int64, ipVersion, recordSize int, isCountry bool) (int64, tally, error) {
+	var tl tally
 	if buildEpoch == 0 {
 		buildEpoch = time.Now().Unix()
 	}
@@ -169,12 +287,25 @@ func writeMMDB(w io.Writer, entries []cidr.SpecEntry, dbType, description string
 		},
 	)
 	if err != nil {
-		return 0, fmt.Errorf("creating writer: %w", err)
+		return 0, tl, fmt.Errorf("creating writer: %w", err)
+	}
+
+	entries = slices.Clone(entries) // sort a copy; the caller's slice is not ours
+	sort.SliceStable(entries, func(i, j int) bool {
+		return treeDepth(entries[i].Prefix) < treeDepth(entries[j].Prefix)
+	})
+
+	warned := 0
+	warn := func(format string, args ...any) {
+		if warned++; warned <= maxWarnings {
+			fmt.Fprintf(os.Stderr, "mmdb-write: warning: "+format+"\n", args...)
+		}
 	}
 
 	for _, e := range entries {
 		_, network, err := net.ParseCIDR(e.Prefix.String())
 		if err != nil {
+			tl.unparseable++
 			continue
 		}
 
@@ -182,29 +313,30 @@ func writeMMDB(w io.Writer, entries []cidr.SpecEntry, dbType, description string
 		if isCountry {
 			isoCode := e.Org
 			if isoCode == "" || isoCode == "Unknown" || isoCode == "EU" || isoCode == "AP" || isoCode == "ZZ" {
+				tl.pseudoCode++
 				continue
 			}
 			ci, ok := countryData.Countries[isoCode]
 			if !ok {
-				fmt.Fprintf(os.Stderr, "mmdb-write: warning: unknown country code %q, skipping %s\n", isoCode, e.Prefix)
+				tl.unknownCountry++
+				warn("unknown country code %q, skipping %s", isoCode, e.Prefix)
 				continue
 			}
 			cont, ok := countryData.Continents[ci.ContinentCode]
 			if !ok {
-				fmt.Fprintf(os.Stderr, "mmdb-write: warning: unknown continent code %q for %s, skipping %s\n", ci.ContinentCode, isoCode, e.Prefix)
+				tl.unknownContinent++
+				warn("unknown continent code %q for %s, skipping %s", ci.ContinentCode, isoCode, e.Prefix)
 				continue
 			}
 
 			countryRec := map[string]any{
-				"geoname_id": ci.GeonameID,
-				"iso_code":   isoCode,
-				"names":      ci.Names,
+				"iso_code": isoCode,
+				"names":    ci.Names,
 			}
-			rcRec := map[string]any{
-				"geoname_id": ci.GeonameID,
-				"iso_code":   isoCode,
-				"names":      ci.Names,
+			if ci.GeonameID != 0 { // an id of 0 is "unknown", not a GeoNames id
+				countryRec["geoname_id"] = ci.GeonameID
 			}
+			rcRec := maps.Clone(countryRec)
 			if ci.IsInEuropeanUnion {
 				countryRec["is_in_european_union"] = true
 				rcRec["is_in_european_union"] = true
@@ -229,14 +361,23 @@ func writeMMDB(w io.Writer, entries []cidr.SpecEntry, dbType, description string
 		if err := tree.Insert(network, record); err != nil {
 			var aliased *mmdbwriter.AliasedNetworkError
 			if errors.As(err, &aliased) {
-				fmt.Fprintf(os.Stderr, "mmdb-write: warning: skipping %s (aliased network)\n", e.Prefix)
+				tl.aliased++
+				warn("skipping %s (aliased network)", e.Prefix)
 				continue
 			}
-			return 0, fmt.Errorf("insert %s: %w", e.Prefix, err)
+			return 0, tl, fmt.Errorf("insert %s: %w", e.Prefix, err)
+		}
+		tl.inserted++
+		if e.ASN != 0 {
+			tl.nonZeroASN++
 		}
 	}
 
-	return tree.WriteTo(w)
+	if tl.inserted == 0 {
+		return 0, tl, fmt.Errorf("nothing to write: no entry was inserted (%s)", tl)
+	}
+	n, err := tree.WriteTo(w)
+	return n, tl, err
 }
 
 // toMMDBType recursively converts a Go value to an mmdbtype value.

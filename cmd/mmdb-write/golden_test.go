@@ -122,7 +122,7 @@ func renderMMDB(t *testing.T, spec, dbType string, isCountry bool) string {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	if _, err := writeMMDB(&buf, entries, dbType, "golden", 1700000000, 6, 24, isCountry); err != nil {
+	if _, _, err := writeMMDB(&buf, entries, dbType, "golden", 1700000000, 6, 24, isCountry); err != nil {
 		t.Fatal(err)
 	}
 	db := buf.Bytes()
