@@ -192,3 +192,26 @@ func TestSuccessReplacesFile(t *testing.T) {
 		t.Errorf("files left: %v", es)
 	}
 }
+
+// An empty or non-numeric ASN is counted malformed and skipped, matching the
+// library's parseASN rule (optional AS/as prefix, then a uint32).
+func TestASNValidated(t *testing.T) {
+	const in = "1.1.1.0,1.1.1.255,13335,Cloudflare\n" +
+		"1.1.2.0,1.1.2.255,AS64500,Prefixed\n" +
+		"1.1.3.0,1.1.3.255,as64501,Lower\n" +
+		"1.1.4.0,1.1.4.255,,Empty\n" +
+		"1.1.5.0,1.1.5.255,notanumber,Junk\n" +
+		"1.1.6.0,1.1.6.255,4294967296,TooBig\n"
+	var buf bytes.Buffer
+	st, err := convert(strings.NewReader(in), &buf, "asn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "1.1.1.0/24 13335 Cloudflare\n1.1.2.0/24 AS64500 Prefixed\n1.1.3.0/24 as64501 Lower\n"
+	if buf.String() != want {
+		t.Errorf("output:\n%q\nwant:\n%q", buf.String(), want)
+	}
+	if st.rows != 3 || st.malformed != 3 {
+		t.Errorf("stats = %+v, want rows=3 malformed=3", st)
+	}
+}

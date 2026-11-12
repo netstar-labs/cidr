@@ -25,6 +25,7 @@ import (
 	"io"
 	"net/netip"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -155,6 +156,10 @@ func convert(r io.Reader, w io.Writer, db string) (stats, error) {
 				continue
 			}
 			asn, org := strings.TrimSpace(rec[2]), strings.TrimSpace(rec[3])
+			if !validASN(asn) {
+				st.malformed++ // empty or not an AS number: the loader would reject the line
+				continue
+			}
 			for _, p := range prefixes {
 				if _, err := fmt.Fprintf(w, "%s %s %s\n", p, asn, org); err != nil {
 					return st, err
@@ -165,6 +170,16 @@ func convert(r io.Reader, w io.Writer, db string) (stats, error) {
 		st.rows++
 	}
 	return st, nil
+}
+
+// validASN applies the library's rule (parseASN in input.go): an optional "AS"
+// or "as" prefix, then a decimal uint32.
+func validASN(s string) bool {
+	if len(s) >= 2 && (s[0] == 'A' || s[0] == 'a') && (s[1] == 'S' || s[1] == 's') {
+		s = s[2:]
+	}
+	_, err := strconv.ParseUint(s, 10, 32)
+	return err == nil
 }
 
 // open returns a reader over a local file or a fetched URL, transparently
