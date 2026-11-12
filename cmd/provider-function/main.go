@@ -71,21 +71,29 @@
 //
 // A row a parser cannot use is counted per provider and reported as
 // malformed[...]; a provider that was attempted is always in the records[...]
-// tally, including at zero. And a source that yielded no usable rows at all is
-// a hard error, not an empty section of the table: none of these feeds is ever
-// legitimately empty, so zero rows means the fetch or the parse broke. Without
-// that guard a feed answering 200 with the wrong shape produced a clean exit
-// and a zero-byte file — which, under build/provider-function --generator,
-// truncates the published spec on a "successful" timer run.
+// tally, including at zero. And a FEED that yielded no usable rows at all is a
+// hard error, not an empty section of the table: none of these feeds is ever
+// legitimately empty, so zero rows means the fetch or the parse broke. The unit
+// is the feed — one URL, or one -in entry — not the provider: Cloudflare
+// publishes ips-v4 and ips-v6 separately, and a provider-level count would let a
+// dead ips-v6 hide behind a healthy ips-v4. Each feed's rows and malformed
+// counts are reported on stderr. Without the guard a feed answering 200 with the
+// wrong shape produced a clean exit and a zero-byte file — which, under
+// build/provider-function --generator, truncates the published spec on a
+// "successful" timer run.
 //
 // Two shape failures are hard errors for the same reason. A JSON feed whose
 // expected top-level array is absent or null (AWS prefixes / ipv6_prefixes,
 // Fastly addresses / ipv6_addresses, Google prefixes) has changed shape, and
 // decoding that as "no rows" would silently drop a whole address family. An
-// array that is present but empty is accepted — the zero-row guard above
-// decides whether the source as a whole is usable. And a line-list feed with a
+// array that is present but empty is accepted — the feed-level guard above
+// decides whether the feed as a whole is usable. And a line-list feed with a
 // line of 1 MiB or more is not a line list: the scanner cannot get past it, so
 // every row after it would be lost.
+//
+// All output is atomic (internal/feedio): the table is written to a temporary
+// file and renamed over -o only after every guard has passed, so any failure
+// leaves the previous file exactly as it was.
 //
 // # -in and -provider
 //
@@ -102,8 +110,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
 	"net/netip"
 	"os"
 	"sort"
@@ -111,6 +117,7 @@ import (
 	"time"
 
 	"github.com/netstar-labs/cidr"
+	"github.com/netstar-labs/cidr/internal/feedio"
 )
 
 // The function labels published operator ranges can support. See the package
@@ -193,7 +200,7 @@ func main() {
 	in := flag.String("in", "", "comma-separated provider=path local files instead of fetching")
 	out := flag.String("o", "", "write to this file instead of stdout")
 	conflictLog := flag.String("conflict-log", "", "write every conflict to this file as TSV")
-	timeout := flag.Duration("timeout", 30*time.Second, "dial/response-header timeout")
+	timeout := flag.Duration("timeout", 30*time.Second, "dial/response-header timeout, and how long a download may stall with no data")
 	flag.Parse()
 
 	if *version {
@@ -254,34 +261,33 @@ func run(name, in, out, conflictLog string, timeout time.Duration) error {
 	// path that does not depend on where the loop stopped.
 	defer closeAll(sources)
 
-	for _, src := range sources {
+	for i := range sources {
+		src := &sources[i]
 		// An attempted provider is always in the tally, even at zero — the
 		// alternative is a feed that failed being absent from the report rather
 		// than visibly empty.
 		st.perSource[src.provider] += 0
-		err := providers[src.provider].parse(src.r, collect(src.provider, &st, table, &conflicts))
+		err := providers[src.provider].parse(src.r, collect(src.provider, &src.tally, &st, table, &conflicts))
 		if err != nil {
 			return fmt.Errorf("%s: %w", src.name, err)
 		}
 	}
-	if err := checkSourcesProduced(sources, &st); err != nil {
+	reportFeeds(os.Stderr, sources)
+	if err := checkFeedsProduced(sources); err != nil {
 		return err
 	}
 
-	var w io.Writer = os.Stdout
-	if out != "" {
-		f, err := os.Create(out)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		w = f
-	}
-	bw := bufio.NewWriter(w)
-	if err := emit(table, bw); err != nil {
+	// Every guard has passed; only now does an output exist. Commit publishes it
+	// atomically, and any earlier return leaves the previous file untouched.
+	o, err := feedio.Create(out)
+	if err != nil {
 		return err
 	}
-	if err := bw.Flush(); err != nil {
+	defer o.Abort()
+	if err := emit(table, o); err != nil {
+		return err
+	}
+	if err := o.Commit(); err != nil {
 		return err
 	}
 
@@ -292,53 +298,68 @@ func run(name, in, out, conflictLog string, timeout time.Duration) error {
 	}
 	reportConflicts(os.Stderr, conflicts, conflictLog)
 
-	dst := "stdout"
-	if out != "" {
-		dst = out
-	}
 	// Per-provider counts are published *records*, which exceed prefixes: AWS
 	// lists a prefix once per service it belongs to, and the table collapses those.
 	fmt.Fprintf(os.Stderr, "provider-function: records[%s] malformed[%s] prefixes=%d conflicts=%d -> %s\n",
-		perSourceTally(st.perSource), perSourceTally(st.malformed), len(table), len(conflicts), dst)
+		perSourceTally(st.perSource), perSourceTally(st.malformed), len(table), len(conflicts), o.Name())
 	return nil
 }
+
+// tally is what one feed contributed: usable rows and rows a parser could not
+// use. It is per feed (one URL or one -in entry), not per provider, because a
+// provider can publish several files and the guard must see each of them.
+type tally struct{ rows, malformed int }
 
 // collect returns the per-record callback a parser feeds: it turns the raw
 // prefix text into a netip.Prefix, counts what it cannot parse, and merges the
 // rest. Parsing in one place rather than in each of the four parsers is what
 // gives the malformed counter a single home — without it, a feed answering 200
-// with the wrong shape yields a short table and a clean exit.
-func collect(provider string, st *stats, table map[netip.Prefix]entry, conflicts *[]conflict) func(string, entry) {
+// with the wrong shape yields a short table and a clean exit. Counts go to both
+// the provider tally in st (the summary line) and the feed's own tally t (the
+// per-feed guard and report).
+func collect(provider string, t *tally, st *stats, table map[netip.Prefix]entry, conflicts *[]conflict) func(string, entry) {
 	return func(raw string, e entry) {
 		p, err := cidr.ParsePrefix(raw)
 		if err != nil {
 			st.malformed[provider]++
+			t.malformed++
 			return
 		}
 		e.provider = provider
 		st.perSource[provider]++
+		t.rows++
 		merge(table, p, e, conflicts)
 	}
 }
 
-// checkSourcesProduced refuses to write a table when a source that was actually
-// attempted yielded nothing usable. None of these five feeds is ever legitimately
+// checkFeedsProduced refuses to write a table when any feed that was actually
+// attempted yielded nothing usable. None of these feeds is ever legitimately
 // empty, so zero rows means the fetch or the parse broke — and the failure is
 // otherwise silent: build/provider-function --generator would truncate the
-// published spec to empty on a "successful" timer run.
-func checkSourcesProduced(sources []source, st *stats) error {
-	seen := map[string]bool{}
+// published spec to empty on a "successful" timer run. The check is per feed,
+// not per provider: Cloudflare's ips-v6 being empty is a failure even when its
+// ips-v4 is healthy.
+func checkFeedsProduced(sources []source) error {
+	var empty []string
 	for _, src := range sources {
-		if seen[src.provider] {
-			continue
-		}
-		seen[src.provider] = true
-		if st.perSource[src.provider] == 0 {
-			return fmt.Errorf("provider %s produced no usable rows (%d malformed) — refusing to write a table that would look like an empty internet",
-				src.provider, st.malformed[src.provider])
+		if src.rows == 0 {
+			empty = append(empty, fmt.Sprintf("%s feed %s (%d malformed)", src.provider, src.name, src.malformed))
 		}
 	}
+	if len(empty) > 0 {
+		return fmt.Errorf("no usable rows from %s — refusing to write a table that would look like an empty internet; nothing published, previous output left untouched",
+			strings.Join(empty, "; "))
+	}
 	return nil
+}
+
+// reportFeeds prints one line per feed, so a feed that is short or empty is
+// named rather than folded into its provider's total.
+func reportFeeds(w io.Writer, sources []source) {
+	for _, src := range sources {
+		fmt.Fprintf(w, "provider-function: feed %s %s rows=%d malformed=%d\n",
+			src.provider, src.name, src.rows, src.malformed)
+	}
 }
 
 // merge adds one classification, resolving a prefix already claimed. Rank
@@ -574,6 +595,7 @@ type source struct {
 	name     string // for error messages: the url or file path
 	provider string
 	r        io.ReadCloser
+	tally    // what this one feed contributed
 }
 
 func openSources(name, in string, timeout time.Duration) ([]source, error) {
@@ -614,7 +636,7 @@ func openSources(name, in string, timeout time.Duration) ([]source, error) {
 	}
 	for _, prov := range names {
 		for _, url := range providers[prov].urls {
-			body, err := fetch(url, timeout)
+			body, err := feedio.Fetch(url, userAgent, timeout, timeout)
 			if err != nil {
 				closeAll(out)
 				return nil, err
@@ -631,30 +653,7 @@ func closeAll(s []source) {
 	}
 }
 
-func fetch(url string, timeout time.Duration) (io.ReadCloser, error) {
-	client := &http.Client{Transport: &http.Transport{
-		// A hand-built Transport has a nil Proxy, which silently ignores
-		// HTTPS_PROXY/HTTP_PROXY/NO_PROXY — unlike http.DefaultTransport.
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           (&net.Dialer{Timeout: timeout}).DialContext,
-		TLSHandshakeTimeout:   timeout,
-		ResponseHeaderTimeout: timeout,
-	}}
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "provider-function-cidr (+github.com/netstar-labs/cidr)")
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
-		return nil, fmt.Errorf("%s: %s", url, resp.Status)
-	}
-	return resp.Body, nil
-}
+const userAgent = "provider-function-cidr (+github.com/netstar-labs/cidr)"
 
 // --- reporting --------------------------------------------------------------
 
@@ -692,17 +691,16 @@ func reportConflicts(w io.Writer, conflicts []conflict, logPath string) {
 }
 
 func writeConflictLog(path string, conflicts []conflict) error {
-	f, err := os.Create(path)
+	o, err := feedio.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	bw := bufio.NewWriter(f)
-	fmt.Fprintln(bw, "prefix\ta_provider\ta_function\tb_provider\tb_function\twinner_provider\twinner_function")
+	defer o.Abort()
+	fmt.Fprintln(o, "prefix\ta_provider\ta_function\tb_provider\tb_function\twinner_provider\twinner_function")
 	for _, c := range conflicts {
-		fmt.Fprintf(bw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", c.prefix,
+		fmt.Fprintf(o, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", c.prefix,
 			c.a.provider, c.a.function, c.b.provider, c.b.function,
 			c.winner.provider, c.winner.function)
 	}
-	return bw.Flush()
+	return o.Commit()
 }
