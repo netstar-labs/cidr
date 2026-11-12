@@ -533,7 +533,8 @@ if a, ok := netip.AddrFromSlice(ip); ok {
 ```
 
 The library `Unmap`s internally too, so an IPv4-in-IPv6 address matches the IPv4
-side either way.
+side either way. Mapped prefixes (`::ffff:a.b.c.d/n`, n ≥ 96) are stored as the
+IPv4 prefix `/n−96`; shorter prefixes stay IPv6.
 
 ## Concurrency and refresh
 

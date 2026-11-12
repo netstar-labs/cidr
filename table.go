@@ -42,12 +42,14 @@ func NewTableBuilder[V any]() *TableBuilder[V] { return &TableBuilder[V]{} }
 
 // Add attaches value v to prefix p (masked to its network). When prefixes nest,
 // the longest (most specific) one wins at lookup time. Adding the same prefix
-// more than once keeps the most recently added value.
+// more than once keeps the most recently added value. An IPv4-mapped prefix
+// (::ffff:a.b.c.d/n with n >= 96) is stored as the IPv4 prefix /n-96; shorter
+// prefixes stay IPv6.
 func (b *TableBuilder[V]) Add(p netip.Prefix, v V) {
 	if !p.IsValid() {
 		return
 	}
-	p = p.Masked()
+	p = unmapPrefix(p).Masked()
 	vi := int32(len(b.vals))
 	b.vals = append(b.vals, v)
 	e := pfx{lo: p.Addr(), hi: lastAddr(p), length: p.Bits(), vi: vi}
@@ -169,13 +171,14 @@ func sweep(prefixes []pfx) []segment {
 }
 
 // Lookup returns the value of the most-specific prefix covering a, or the zero V
-// and false when no prefix covers it.
+// and false when no prefix covers it. An IPv4-mapped IPv6 address is matched as
+// the IPv4 address it represents, and a zone on a is ignored.
 func (t *Table[V]) Lookup(a netip.Addr) (V, bool) {
 	var zero V
 	if !a.IsValid() {
 		return zero, false
 	}
-	a = a.Unmap()
+	a = a.Unmap().WithZone("")
 	segs := t.v4
 	if a.Is6() {
 		segs = t.v6

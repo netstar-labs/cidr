@@ -49,7 +49,9 @@ type iprange struct {
 
 // ParsePrefix parses "10.0.0.0/8" or "2001:db8::/32", or a bare address
 // ("1.2.3.4", "::1") promoted to a host route (/32 or /128). The returned
-// prefix is masked to its network address.
+// prefix is masked to its network address. An IPv4-mapped prefix
+// (::ffff:a.b.c.d/n with n >= 96) is returned as the IPv4 prefix /n-96;
+// shorter prefixes stay IPv6.
 func ParsePrefix(s string) (netip.Prefix, error) {
 	s = strings.TrimSpace(s)
 	if strings.IndexByte(s, '/') >= 0 {
@@ -57,7 +59,7 @@ func ParsePrefix(s string) (netip.Prefix, error) {
 		if err != nil {
 			return netip.Prefix{}, err
 		}
-		return p.Masked(), nil
+		return unmapPrefix(p).Masked(), nil
 	}
 	a, err := netip.ParseAddr(s)
 	if err != nil {
@@ -65,6 +67,17 @@ func ParsePrefix(s string) (netip.Prefix, error) {
 	}
 	a = a.Unmap()
 	return netip.PrefixFrom(a, a.BitLen()), nil
+}
+
+// unmapPrefix folds an IPv4-mapped prefix (::ffff:a.b.c.d/n, n >= 96) to the IPv4
+// prefix /n-96, so it lands in the IPv4 array where Unmap()ed queries look; the
+// rebase keeps longest-prefix match correct against native IPv4 prefixes.
+// Prefixes shorter than /96 are genuinely IPv6 and are returned unchanged.
+func unmapPrefix(p netip.Prefix) netip.Prefix {
+	if p.Addr().Is4In6() && p.Bits() >= 96 {
+		return netip.PrefixFrom(p.Addr().Unmap(), p.Bits()-96)
+	}
+	return p
 }
 
 // lastAddr returns the broadcast (all-host-bits-set) address of a prefix: the network
@@ -129,11 +142,13 @@ type Builder struct {
 func NewBuilder() *Builder { return &Builder{} }
 
 // Add inserts a prefix (masked to its network) into the set under construction.
+// An IPv4-mapped prefix (::ffff:a.b.c.d/n with n >= 96) is stored as the IPv4
+// prefix /n-96; shorter prefixes stay IPv6.
 func (b *Builder) Add(p netip.Prefix) {
 	if !p.IsValid() {
 		return
 	}
-	p = p.Masked()
+	p = unmapPrefix(p).Masked()
 	r := iprange{lo: p.Addr(), hi: lastAddr(p)}
 	if p.Addr().Is4() {
 		b.v4 = append(b.v4, r)
@@ -160,12 +175,14 @@ func (b *Builder) Freeze() *Set {
 	return &Set{v4: mergeRanges(b.v4), v6: mergeRanges(b.v6)}
 }
 
-// Contains reports whether a is covered by any prefix in the set.
+// Contains reports whether a is covered by any prefix in the set. An IPv4-mapped
+// IPv6 address is matched as the IPv4 address it represents, and a zone on a is
+// ignored.
 func (s *Set) Contains(a netip.Addr) bool {
 	if !a.IsValid() {
 		return false
 	}
-	a = a.Unmap()
+	a = a.Unmap().WithZone("")
 	rs := s.v4
 	if a.Is6() {
 		rs = s.v6
