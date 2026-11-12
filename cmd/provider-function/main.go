@@ -78,6 +78,15 @@
 // and a zero-byte file — which, under build/provider-function --generator,
 // truncates the published spec on a "successful" timer run.
 //
+// Two shape failures are hard errors for the same reason. A JSON feed whose
+// expected top-level array is absent or null (AWS prefixes / ipv6_prefixes,
+// Fastly addresses / ipv6_addresses, Google prefixes) has changed shape, and
+// decoding that as "no rows" would silently drop a whole address family. An
+// array that is present but empty is accepted — the zero-row guard above
+// decides whether the source as a whole is usable. And a line-list feed with a
+// line of 1 MiB or more is not a line list: the scanner cannot get past it, so
+// every row after it would be lost.
+//
 // # -in and -provider
 //
 // -in takes provider=path pairs, not a bare path: the five feeds have four
@@ -416,20 +425,40 @@ func emit(table map[netip.Prefix]entry, w io.Writer) error {
 
 // --- parsers ----------------------------------------------------------------
 
+// needArray is the shape check for a top-level JSON array: a pointer field is
+// nil when the key is absent or null, and non-nil (possibly empty) when the
+// array is present. Decoding into a plain slice cannot tell those apart, so a
+// renamed or dropped key would read as "no rows".
+func needArray[T any](p *[]T, key string) ([]T, error) {
+	if p == nil {
+		return nil, fmt.Errorf("expected JSON array %q is missing or null: the feed's shape has changed", key)
+	}
+	return *p, nil
+}
+
 // parseAWS reads ip-ranges.json. Every prefix is listed once per service it
-// belongs to; see the package doc for the precedence that resolves that.
+// belongs to; see the package doc for the precedence that resolves that. Both
+// arrays must be present (either may be empty).
 func parseAWS(r io.Reader, emit func(string, entry)) error {
 	var doc struct {
-		Prefixes []struct {
+		Prefixes *[]struct {
 			IPPrefix string `json:"ip_prefix"`
 			Service  string `json:"service"`
 		} `json:"prefixes"`
-		IPv6Prefixes []struct {
+		IPv6Prefixes *[]struct {
 			IPv6Prefix string `json:"ipv6_prefix"`
 			Service    string `json:"service"`
 		} `json:"ipv6_prefixes"`
 	}
 	if err := json.NewDecoder(r).Decode(&doc); err != nil {
+		return err
+	}
+	v4, err := needArray(doc.Prefixes, "prefixes")
+	if err != nil {
+		return err
+	}
+	v6, err := needArray(doc.IPv6Prefixes, "ipv6_prefixes")
+	if err != nil {
 		return err
 	}
 	add := func(s, service string) {
@@ -439,20 +468,21 @@ func parseAWS(r io.Reader, emit func(string, entry)) error {
 		}
 		emit(s, e)
 	}
-	for _, p := range doc.Prefixes {
+	for _, p := range v4 {
 		add(p.IPPrefix, p.Service)
 	}
-	for _, p := range doc.IPv6Prefixes {
+	for _, p := range v6 {
 		add(p.IPv6Prefix, p.Service)
 	}
 	return nil
 }
 
 // parseGoogleCloud reads cloud.json, whose entries carry exactly one of
-// ipv4Prefix/ipv6Prefix and a single service value ("Google Cloud").
+// ipv4Prefix/ipv6Prefix and a single service value ("Google Cloud"). An entry
+// with neither is a row the parser cannot use and is counted as malformed.
 func parseGoogleCloud(r io.Reader, emit func(string, entry)) error {
 	var doc struct {
-		Prefixes []struct {
+		Prefixes *[]struct {
 			IPv4Prefix string `json:"ipv4Prefix"`
 			IPv6Prefix string `json:"ipv6Prefix"`
 		} `json:"prefixes"`
@@ -460,7 +490,15 @@ func parseGoogleCloud(r io.Reader, emit func(string, entry)) error {
 	if err := json.NewDecoder(r).Decode(&doc); err != nil {
 		return err
 	}
-	for _, pfx := range doc.Prefixes {
+	prefixes, err := needArray(doc.Prefixes, "prefixes")
+	if err != nil {
+		return err
+	}
+	for _, pfx := range prefixes {
+		if pfx.IPv4Prefix == "" && pfx.IPv6Prefix == "" {
+			emit("", entry{function: funcCloud}) // counted as malformed
+			continue
+		}
 		for _, s := range []string{pfx.IPv4Prefix, pfx.IPv6Prefix} {
 			if s == "" {
 				continue
@@ -478,10 +516,10 @@ func parseGoogleCloud(r io.Reader, emit func(string, entry)) error {
 func parseLineList(e entry) func(io.Reader, func(string, entry)) error {
 	return func(r io.Reader, emit func(string, entry)) error {
 		sc := bufio.NewScanner(r)
-		// A line longer than the 64KB default would otherwise abort the whole
-		// run with "token too long", discarding every provider that parsed
-		// cleanly — a minified error page is one line. Same bound, and the same
-		// reason, as rir-country.
+		// A line longer than the 64KB default would otherwise abort the run with
+		// "token too long"; lines up to 1 MiB are read and, being no prefix,
+		// counted as malformed. Same bound as rir-country. Beyond that the
+		// scanner cannot continue, so see the ErrTooLong case below.
 		sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 		for sc.Scan() {
 			line := strings.TrimSpace(sc.Text())
@@ -492,10 +530,11 @@ func parseLineList(e entry) func(io.Reader, func(string, entry)) error {
 		}
 		if err := sc.Err(); err != nil {
 			if errors.Is(err, bufio.ErrTooLong) {
-				// Count it and keep the rows that did parse, rather than
-				// discarding four good providers over one absurd line.
-				emit("", e)
-				return nil
+				// The scanner stops at this line, so every row after it is lost.
+				// Counting it as one malformed row and carrying on would publish a
+				// truncated table with a clean exit; a feed that is not a line
+				// list is a hard error.
+				return errors.New("line of 1 MiB or more: not a line-list feed, and every row after it would be lost")
 			}
 			return err
 		}
@@ -503,16 +542,25 @@ func parseLineList(e entry) func(io.Reader, func(string, entry)) error {
 	}
 }
 
-// parseFastly reads public-ip-list. Fastly documents its edge as anycast.
+// parseFastly reads public-ip-list. Fastly documents its edge as anycast. Both
+// arrays must be present (either may be empty).
 func parseFastly(r io.Reader, emit func(string, entry)) error {
 	var doc struct {
-		Addresses     []string `json:"addresses"`
-		IPv6Addresses []string `json:"ipv6_addresses"`
+		Addresses     *[]string `json:"addresses"`
+		IPv6Addresses *[]string `json:"ipv6_addresses"`
 	}
 	if err := json.NewDecoder(r).Decode(&doc); err != nil {
 		return err
 	}
-	for _, list := range [][]string{doc.Addresses, doc.IPv6Addresses} {
+	v4, err := needArray(doc.Addresses, "addresses")
+	if err != nil {
+		return err
+	}
+	v6, err := needArray(doc.IPv6Addresses, "ipv6_addresses")
+	if err != nil {
+		return err
+	}
+	for _, list := range [][]string{v4, v6} {
 		for _, s := range list {
 			emit(s, entry{function: funcCDN, anycast: true})
 		}
