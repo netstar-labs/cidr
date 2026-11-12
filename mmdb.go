@@ -201,17 +201,25 @@ const maxMMDBDepth = 512
 // is not enough: a data DAG whose every level is an array of two pointers to the level
 // below (~6 bytes per level) decodes in 2^levels time and memory, and N pointers to one
 // large string copy that string N times. Every decoded value (a pointer follow included)
-// costs valueCost units, and a string, bytes or uint128 value also costs its payload
-// bytes, so the budget bounds both the number of values built and the bytes copied. A
-// budget is per top-level decode (one for the metadata, one per Lookup) and threaded
-// through decodeMMDB explicitly — never package state, since lookups run concurrently.
+// costs valueCost units, a string, bytes or uint128 value also costs its payload bytes,
+// and a container is charged for its FULL declared count (elemCost per array slot,
+// mapEntryCost per map entry, plus mapBaseCost per map) before anything is allocated, so
+// the budget bounds both the number of values built and the memory they occupy. A budget
+// is per top-level decode (one for the metadata, one per Lookup) and threaded through
+// decodeMMDB explicitly — never package state, since lookups run concurrently.
+//
+// A unit buys at most about 1.3 bytes of heap (measured by TestMMDBBudgetBytesPerUnit over
+// the worst shapes: 0.15 B/unit for pointers to empty maps up to 1.26 B/unit for empty
+// arrays, 0.5–1.15 for pointers to small boxed scalars), so one decode allocates on the
+// order of its budget in bytes: at most ~42 MB at the maxDecodeCost ceiling, ~4*sectionLen
+// bytes below it. That is per Lookup: concurrent lookups multiply it by the number in flight.
 const (
-	valueCost     = 16      // fixed units charged per decoded value
-	elemCost      = 16      // extra units per pre-sized array slot
-	mapEntryCost  = 48      // extra units per pre-sized map entry
-	minDecodeCost = 1 << 20 // floor of a budget, so tiny sections still decode
-	maxDecodeCost = 1 << 25 // ceiling of a budget: admits the largest single value the format allows
-	maxPresize    = 4096    // cap on the entries a container pre-allocates
+	valueCost     = 16               // fixed units charged per decoded value
+	elemCost      = 16               // extra units per array slot (an interface: 16 B)
+	mapEntryCost  = 48               // extra units per map entry (a string key and an interface, plus table overhead)
+	mapBaseCost   = 8 * mapEntryCost // extra units per map: about Go's smallest map allocation
+	minDecodeCost = 1 << 20          // floor of a budget, so tiny sections still decode
+	maxDecodeCost = 1 << 25          // ceiling of a budget: admits the largest single value the format allows
 )
 
 var errBudget = errors.New("cidr: mmdb: decode budget exceeded")
@@ -366,11 +374,11 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int, bud *budget) (any, int, err
 		if size > avail { // each entry needs >= 1 byte: reject an amplified count
 			return nil, 0, errTrunc
 		}
-		presize := min(size, maxPresize) // pre-size capped; grows to the real count
-		if err := bud.charge(presize * mapEntryCost); err != nil {
+		// size <= avail, so size*mapEntryCost cannot overflow; charge before allocating
+		if err := bud.charge(mapBaseCost + size*mapEntryCost); err != nil {
 			return nil, 0, err
 		}
-		m := make(map[string]any, presize)
+		m := make(map[string]any, size)
 		o := off
 		for i := 0; i < size; i++ {
 			k, no, err := decodeMMDB(buf, o, ptrBase, depth+1, bud)
@@ -406,11 +414,11 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int, bud *budget) (any, int, err
 		if size > avail { // each element needs >= 1 byte: reject an amplified count
 			return nil, 0, errTrunc
 		}
-		presize := min(size, maxPresize) // pre-size capped; grows to the real count
-		if err := bud.charge(presize * elemCost); err != nil {
+		// size <= avail, so size*elemCost cannot overflow; charge before allocating
+		if err := bud.charge(size * elemCost); err != nil {
 			return nil, 0, err
 		}
-		arr := make([]any, 0, presize)
+		arr := make([]any, 0, size)
 		o := off
 		for i := 0; i < size; i++ {
 			v, no, err := decodeMMDB(buf, o, ptrBase, depth+1, bud)

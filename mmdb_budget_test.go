@@ -2,7 +2,9 @@ package cidr
 
 import (
 	"bytes"
+	"fmt"
 	"net"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -274,6 +276,167 @@ func TestMMDBExtendedTypeWrap(t *testing.T) {
 		_, err := OpenMMDBBytes(buildDB(0, nil, metaKV(encStr("x"), val)))
 		if err == nil || !strings.Contains(err.Error(), "invalid extended type") {
 			t.Errorf("extended type byte 0x%02x in metadata: err = %v, want an invalid-extended-type error", ext, err)
+		}
+	}
+}
+
+// --- the budget bounds memory: units are (at most about) bytes ---
+
+// allocDelta reports the heap bytes allocated while f runs (TotalAlloc is cumulative, so
+// no GC interference). Tests using it must not run in parallel.
+func allocDelta(f func()) uint64 {
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	f()
+	runtime.ReadMemStats(&after)
+	return after.TotalAlloc - before.TotalAlloc
+}
+
+// A hostile record: an array declaring 2M elements, each a one-byte empty map (0xe0), in
+// a 2 MB data section. Declared in full, it must be charged (2M*elemCost = 32M units
+// against a 8M budget) before the slice is allocated, so the Lookup fails cheaply.
+// Before the fix this pre-sized 4096, then grew by append, decoding ~2M maps.
+func TestMMDBBudgetHostileArrayLookup(t *testing.T) {
+	const n = 2_000_000
+	blob := append(hdr(11, n), bytes.Repeat([]byte{0xe0}, n)...)
+	db, err := OpenMMDBBytes(buildDB(1+16, blob, metaKV()))
+	if err != nil {
+		t.Fatalf("OpenMMDBBytes: %v", err)
+	}
+	var lerr error
+	got := allocDelta(func() { lerr = lookupAny(db) })
+	wantBudgetErr(t, lerr)
+	if got > 8<<20 {
+		t.Errorf("hostile Lookup allocated %d bytes, want under 8 MiB", got)
+	}
+}
+
+// The same with a map declaring 1M entries, each a one-byte key... (an empty string
+// key, 0x40, then an empty map value): charged mapBaseCost + size*mapEntryCost up front.
+func TestMMDBBudgetHostileMapLookup(t *testing.T) {
+	const n = 1_000_000
+	blob := append(hdr(7, n), bytes.Repeat([]byte{0x40, 0xe0}, n)...)
+	db, err := OpenMMDBBytes(buildDB(1+16, blob, metaKV()))
+	if err != nil {
+		t.Fatalf("OpenMMDBBytes: %v", err)
+	}
+	var lerr error
+	got := allocDelta(func() { lerr = lookupAny(db) })
+	wantBudgetErr(t, lerr)
+	if got > 8<<20 {
+		t.Errorf("hostile Lookup allocated %d bytes, want under 8 MiB", got)
+	}
+}
+
+// Pointer fan-out to a tiny map: each 2-byte pointer builds a fresh (empty) map, which
+// costs ~mapBaseCost, not just valueCost (the budget runs out after ~2,400 maps, not ~21,000). 100,000 pointers = a 200 KB file that would
+// otherwise build 100,000 maps.
+func TestMMDBBudgetMapFanOutLookup(t *testing.T) {
+	const n = 100_000
+	build := func(base int) ([]byte, int) {
+		blob := []byte{0xe0} // base+0: an empty map
+		top := base + len(blob)
+		blob = append(blob, hdr(11, n)...)
+		for i := 0; i < n; i++ {
+			blob = append(blob, encPtr(base)...)
+		}
+		return blob, top
+	}
+	db, err := OpenMMDBBytes(dataRecord(build))
+	if err != nil {
+		t.Fatalf("OpenMMDBBytes: %v", err)
+	}
+	var lerr error
+	got := allocDelta(func() { lerr = lookupAny(db) })
+	wantBudgetErr(t, lerr)
+	if got > 512<<10 {
+		t.Errorf("hostile Lookup allocated %d bytes, want under 512 KiB", got)
+	}
+}
+
+// Containers are charged for their declared count: the exact cost of a 100-slot array of
+// empty strings, and of a one-entry map, is pinned, one unit short fails.
+func TestDecodeMMDBBudgetContainers(t *testing.T) {
+	arr := append(hdr(11, 100), bytes.Repeat([]byte{0x40}, 100)...)
+	arrCost := valueCost + 100*elemCost + 100*valueCost
+	mp := append(hdr(7, 1), append(encStr("k"), 0x40)...)
+	mapCost := valueCost + mapBaseCost + mapEntryCost + (valueCost + 1) + valueCost
+	for _, c := range []struct {
+		name string
+		buf  []byte
+		cost int
+	}{{"array", arr, arrCost}, {"map", mp, mapCost}} {
+		if _, _, err := decodeMMDB(c.buf, 0, 0, 0, &budget{left: c.cost - 1}); err != errBudget {
+			t.Errorf("%s one unit short: err = %v, want errBudget", c.name, err)
+		}
+		if _, _, err := decodeMMDB(c.buf, 0, 0, 0, &budget{left: c.cost}); err != nil {
+			t.Errorf("%s exact budget: err = %v, want nil", c.name, err)
+		}
+	}
+}
+
+// TestMMDBBudgetBytesPerUnit measures the claim in the budget comment: on the worst
+// shapes (many small allocations per unit of charge) a decode allocates no more than
+// about a byte or two per unit it was charged.
+func TestMMDBBudgetBytesPerUnit(t *testing.T) {
+	const n = 20000
+	arrayOfPtrs := func(target []byte) []byte { // target at 0, then an array of n pointers to it
+		blob := append([]byte(nil), target...)
+		top := len(blob)
+		blob = append(blob, hdr(11, n)...)
+		for i := 0; i < n; i++ {
+			blob = append(blob, encPtr(0)...)
+		}
+		return blob[top:]
+	}
+	inlineElems := func(elem []byte) []byte {
+		return append(hdr(11, n), bytes.Repeat(elem, n)...)
+	}
+	// keys "k000000"... distinct
+	var mapKeys []byte
+	for i := 0; i < n; i++ {
+		mapKeys = append(mapKeys, encStr(fmt.Sprintf("k%06d", i))...)
+		mapKeys = append(mapKeys, 0x40)
+	}
+	// each shape: a buffer, the offset of the value to decode (pointers need the target
+	// before the array: build as target ++ array, decode at len(target)).
+	type shape struct {
+		name string
+		buf  []byte
+		off  int
+	}
+	withTarget := func(target []byte) shape {
+		return shape{buf: append(append([]byte(nil), target...), arrayOfPtrs(target)...), off: len(target)}
+	}
+	shapes := []shape{
+		func() shape { s := withTarget([]byte{0xe0}); s.name = "ptrs to empty map"; return s }(),
+		func() shape { s := withTarget([]byte{0x00, 0x04}); s.name = "ptrs to empty array"; return s }(),
+		func() shape { s := withTarget(encUint(9, 300)); s.name = "ptrs to uint64"; return s }(),
+		func() shape { s := withTarget(encStr("a")); s.name = "ptrs to 1-byte string"; return s }(),
+		func() shape { s := withTarget(append(hdr(4, 1), 'b')); s.name = "ptrs to 1-byte bytes"; return s }(),
+		func() shape { s := withTarget(append(hdr(10, 1), 7)); s.name = "ptrs to uint128"; return s }(),
+		func() shape {
+			s := withTarget(append(hdr(7, 1), append(encStr("k"), 0x40)...))
+			s.name = "ptrs to 1-entry map"
+			return s
+		}(),
+		{"inline empty arrays", inlineElems([]byte{0x00, 0x04}), 0},
+		{"inline 1-entry maps", inlineElems(append([]byte{0xe1}, append(encStr("k"), 0x40)...)), 0},
+		{"map of empty strings", append(hdr(7, n), mapKeys...), 0},
+	}
+	for _, s := range shapes {
+		bud := &budget{left: 1 << 40}
+		start := bud.left
+		var err error
+		got := allocDelta(func() { _, _, err = decodeMMDB(s.buf, s.off, 0, 0, bud) })
+		if err != nil {
+			t.Errorf("%s: %v", s.name, err)
+			continue
+		}
+		units := start - bud.left
+		t.Logf("%-24s %9d units, %9d bytes allocated, %.2f B/unit", s.name, units, got, float64(got)/float64(units))
+		if float64(got) > 2*float64(units) {
+			t.Errorf("%s: %d bytes allocated for %d units: over 2 B/unit", s.name, got, units)
 		}
 	}
 }
