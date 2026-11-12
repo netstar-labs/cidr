@@ -28,7 +28,7 @@ stdin. NDJSON by default; `-brief` for terse lines; `-match` as a grep-like
 filter. Exit status follows grep: `0` ok (with `-match`, at least one address
 matched), `1` no match (`-match` only), `2` any error — usage, an unreadable
 spec or input, or a failed write to stdout. A malformed address on the command
-line or stdin is skipped with a note on stderr, not an error.
+line or stdin is skipped (with a note on stderr, except under `-match`), not an error.
 
 ```sh
 cidr -spec asn.txt 1.1.1.200 8.8.8.8
@@ -176,8 +176,11 @@ daily oneshot service + timer that fetches iptoasn.com and compiles
 `/var/lib/cidr/iptoasn-asn.mmdb` and `/var/lib/cidr/iptoasn-country.mmdb`
 automatically. The unit is staged, not piped: one `ExecStart=` per step (fetch the
 spec, compile to `….new`, `mv` over the live file), so systemd stops at the first
-failing step and the live database is never touched; `TimeoutStartSec=1h` bounds
-the whole run.
+failing step and a live database is only ever replaced whole, by its own `mv`.
+The ASN database is moved into place before the country half runs, so a failure
+in the country half can leave a new ASN database beside the previous country one.
+`TimeoutStartSec=1h` bounds start-up (whether systemd applies it per `ExecStart=`
+step or to the whole sequence has not been verified on a Linux host).
 
 ## Data generators (fetch + convert)
 
@@ -207,7 +210,9 @@ assuming:
 
 Shared by `iptoasn`, `mm-dbip`, `mm-geolite2-asn`, `rir-country` and
 `provider-function`. **A monitor must look at the exit code**: a failure exits
-`1` (bad flags: `2`) and no longer prints a `rows=0` tally with exit 0.
+non-zero — `1` for a failed run, `2` for most flag-parsing errors (a few
+validated settings, such as `iptoasn -family`, also exit `1`) — and no longer
+prints a `rows=0` tally with exit 0.
 
 - **Atomic output.** With `-o FILE` the spec is written to a hidden
   `.<name>.tmp-*` in the target's directory, fsynced, and renamed over the target

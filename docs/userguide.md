@@ -387,7 +387,7 @@ every one as TSV. Output is sorted and byte-identical across runs.
 
 Nothing fails quietly: unusable rows are counted per provider as
 `malformed[...]`, an attempted provider appears in `records[...]` even at zero,
-and a source that produced **no** usable rows is a hard error with no file
+and a feed (one URL or `-in` entry) that produced **no** usable rows is a hard error with no file
 written — none of these feeds is legitimately empty, so zero rows means the
 fetch or the parse broke, and writing anyway would truncate the published spec
 on a "successful" timer run.
@@ -484,7 +484,9 @@ go run ./cmd/mmdb-build-countries
 Applies to `iptoasn`, `mm-dbip`, `mm-geolite2-asn`, `rir-country` and
 `provider-function`; each succeeds only when it has published a complete file,
 not merely when it exited. **A monitor must use the exit code**: a failure exits
-`1` (bad flags `2`) and no longer prints a `rows=0` tally with exit 0.
+non-zero — `1` for a failed run, `2` for most flag-parsing errors (a few validated
+settings, such as `iptoasn -family`, also exit `1`) — and no longer prints a
+`rows=0` tally with exit 0.
 
 - **Atomic output.** `-o FILE` is written to a hidden `.<name>.tmp-*` in the
   target's directory, fsynced, and renamed over the target only once every check
@@ -536,13 +538,17 @@ build/mmdb-iptoasn-write --generator user@host            # daily -> iptoasn-asn
 Every generator unit sets `TimeoutStartSec` (a `Type=oneshot` unit has no start
 timeout by default, so a hung run would block the timer forever): 30 minutes for
 `iptoasn`, `rir-country` and `provider-function`, 1 hour for `mm-dbip`,
-`mm-geolite2-asn` and the MMDB compile. A failed run (non-zero exit, or the
-timeout) leaves the published file as it was. The `mmdb-iptoasn-write` unit is
+`mm-geolite2-asn` and the MMDB compile (for the staged MMDB unit, whether the
+bound is per step or for the whole sequence has not been verified on Linux). A
+failed run (non-zero exit, or the timeout) never leaves a half-written published
+file; each file is replaced only by its own final rename. The `mmdb-iptoasn-write` unit is
 **staged, not piped**: one `ExecStart=` per step (fetch the spec, compile to
 `….new`, `mv` over the live file), which systemd runs in order and stops at the
 first failure, so a failed download never reaches `mmdb-write` and the live
-database is only ever replaced by the final atomic `mv`; `ExecStopPost=` removes
-the temp files on every path. The live `.mmdb` is a fresh file on each run
+database is only ever replaced by its final atomic `mv` — the ASN database is
+moved before the country half runs, so a failure there can leave a new ASN
+database beside the previous country one; `ExecStopPost=` removes the temp files
+on every path. The live `.mmdb` is a fresh file on each run
 (owner and mode as a new file, not preserved from the previous one).
 
 `--cli` (the default) builds just the binary — nothing is scheduled. With no
@@ -788,7 +794,7 @@ cidr -spec block.txt -match < ips.txt       # print only listed addresses (exit 
 Exit status follows grep: **0** success (with `-match`, at least one address
 matched), **1** no match (`-match` only), **2** any error — bad usage, an
 unreadable spec or input, or a failed write to stdout. An invalid address in the
-input is skipped with a note on stderr, not an error.
+input is skipped (with a note on stderr, except under `-match`), not an error.
 
 A tally (`spec=… prefixes=… intervals=… queried=… member=…`) is written to
 stderr unless `-quiet`. Build a version-stamped `linux/amd64` static binary with
