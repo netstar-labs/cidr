@@ -3,6 +3,7 @@ package cidr
 import (
 	"math/rand"
 	"net/netip"
+	"slices"
 	"testing"
 )
 
@@ -189,5 +190,52 @@ func TestLastAddr(t *testing.T) {
 		netip.PrefixFrom(netip.MustParseAddr("::1"), 129),
 	} {
 		_ = LastAddr(p)
+	}
+}
+
+// TestAddRangeZoned: queries strip zones, so a zoned range must be stored
+// unzoned. Otherwise lo (fe80::1%eth0) sorts after the plain fe80::1 and the
+// first address of the range never matches in a Set.
+func TestAddRangeZoned(t *testing.T) {
+	lo := netip.MustParseAddr("fe80::1%eth0")
+	hi := netip.MustParseAddr("fe80::5%eth0")
+
+	b := NewBuilder()
+	b.AddRange(lo, hi)
+	s := b.Freeze()
+	tb := NewTableBuilder[int]()
+	tb.AddRange(lo, hi, 7)
+	tab := tb.Freeze()
+
+	for _, q := range []string{"fe80::1", "fe80::1%eth0", "fe80::3", "fe80::5", "fe80::5%wlan0"} {
+		a := netip.MustParseAddr(q)
+		if !s.Contains(a) {
+			t.Errorf("Set.Contains(%s) = false, want true", q)
+		}
+		if v, ok := tab.Lookup(a); !ok || v != 7 {
+			t.Errorf("Table.Lookup(%s) = %d,%v, want 7,true", q, v, ok)
+		}
+	}
+	for _, q := range []string{"fe80::", "fe80::6"} {
+		a := netip.MustParseAddr(q)
+		if s.Contains(a) {
+			t.Errorf("Set.Contains(%s) = true, want false", q)
+		}
+		if _, ok := tab.Lookup(a); ok {
+			t.Errorf("Table.Lookup(%s) ok, want miss", q)
+		}
+	}
+	// the stored interval carries no zone
+	if got := s.v6[0]; got.lo.Zone() != "" || got.hi.Zone() != "" {
+		t.Errorf("stored interval keeps a zone: %v-%v", got.lo, got.hi)
+	}
+	// the prefix decomposition is zone-independent
+	want := RangePrefixes(netip.MustParseAddr("fe80::1"), netip.MustParseAddr("fe80::5"))
+	if got := RangePrefixes(lo, hi); !slices.Equal(got, want) {
+		t.Errorf("RangePrefixes zoned = %v, want %v", got, want)
+	}
+	// differing zones on the same address are not "hi < lo"
+	if got := RangePrefixes(netip.MustParseAddr("fe80::5%b"), netip.MustParseAddr("fe80::5%a")); len(got) != 1 {
+		t.Errorf("RangePrefixes mixed zones = %v, want one /128", got)
 	}
 }
