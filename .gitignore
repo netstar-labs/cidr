@@ -11,6 +11,7 @@
 
 # audits are written up in the notes vault, not carried in the repo
 docs/audits/
+docs/plan/
 
 # ignore directories
 _bin/
