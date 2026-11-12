@@ -42,6 +42,11 @@ STAGEDIR=/var/lib/cidr
 OUTFILE=geolite2-asn.cidr
 GENARGS="-family both"            # key comes from the EnvironmentFile, not here
 TIMER="Wed *-*-* 03:20:00 UTC"    # weekly (MaxMind updates GeoLite2 Tue/Fri)
+# TimeoutStartSec: Type=oneshot has no start timeout by default, and the fetch has
+# no whole-body deadline, so a hung download would block the timer forever.
+# 1h: one MaxMind GeoLite2 ASN archive, larger than the feeds above, authenticated download.
+# Generous for that, and still frees the timer well before its next run.
+START_TIMEOUT=1h
 ENVDIR=/etc/cidr
 ENVBASE=$BINARY.env               # EnvironmentFile basename
 
@@ -109,6 +114,7 @@ Wants=network-online.target
 Type=oneshot
 EnvironmentFile=$ENVDIR/$ENVBASE
 ExecStart=$BIN/$BINARY $GENARGS -o $STAGEDIR/$OUTFILE
+TimeoutStartSec=$START_TIMEOUT
 KillSignal=SIGINT
 TimeoutStopSec=30
 
