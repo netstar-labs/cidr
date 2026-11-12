@@ -162,12 +162,14 @@ func (b *Builder) Freeze() *Set {
 	return &Set{v4: mergeRanges(b.v4), v6: mergeRanges(b.v6)}
 }
 
-// Contains reports whether a is covered by any prefix in the set.
+// Contains reports whether a is covered by any prefix in the set. An IPv4-mapped
+// IPv6 address is matched as the IPv4 address it represents, and a zone on a is
+// ignored.
 func (s *Set) Contains(a netip.Addr) bool {
 	if !a.IsValid() {
 		return false
 	}
-	a = a.Unmap()
+	a = a.Unmap().WithZone("")
 	rs := s.v4
 	if a.Is6() {
 		rs = s.v6

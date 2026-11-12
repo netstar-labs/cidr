@@ -171,13 +171,14 @@ func sweep(prefixes []pfx) []segment {
 }
 
 // Lookup returns the value of the most-specific prefix covering a, or the zero V
-// and false when no prefix covers it.
+// and false when no prefix covers it. An IPv4-mapped IPv6 address is matched as
+// the IPv4 address it represents, and a zone on a is ignored.
 func (t *Table[V]) Lookup(a netip.Addr) (V, bool) {
 	var zero V
 	if !a.IsValid() {
 		return zero, false
 	}
-	a = a.Unmap()
+	a = a.Unmap().WithZone("")
 	segs := t.v4
 	if a.Is6() {
 		segs = t.v6

@@ -181,3 +181,117 @@ func TestShortMappedPrefixStaysV6(t *testing.T) {
 		t.Error("Table ::/0 matched an IPv4 query")
 	}
 }
+
+// Zoned query addresses (#17): netip sorts "fe80::1%eth0" just after "fe80::1", so
+// without stripping the zone a Set failed exactly at the last address of a range
+// (hi.Less(a)) while a Table, which compares only range starts, matched. A zone
+// on the query address is ignored.
+
+var zoneCases = []struct {
+	prefix      string
+	first, mid  string
+	last, miss  string
+	missAbove   string // just past the last address
+	missBelowIs string // just before the first address
+}{
+	{"fe80::1/128", "fe80::1", "fe80::1", "fe80::1", "fe80::2", "fe80::2", "fe80::"},
+	{"fe80::/64", "fe80::", "fe80::1234:5678", "fe80::ffff:ffff:ffff:ffff", "fe80:0:0:1::", "fe80:0:0:1::", "fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff"},
+	{"2001:db8::/32", "2001:db8::", "2001:db8:1234::1", "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff", "2001:db9::", "2001:db9::", "2001:db7:ffff:ffff:ffff:ffff:ffff:ffff"},
+}
+
+func TestZonedQuerySet(t *testing.T) {
+	// One set per prefix, so the last address of each range is a range end (a
+	// combined set would merge fe80::1/128 into fe80::/64).
+	for _, tc := range zoneCases {
+		b := NewBuilder()
+		if err := b.AddPrefix(tc.prefix); err != nil {
+			t.Fatal(err)
+		}
+		s := b.Freeze()
+		for _, in := range []string{tc.first, tc.mid, tc.last} {
+			a := netip.MustParseAddr(in)
+			for _, z := range []string{"", "eth0", "1"} {
+				if !s.Contains(a.WithZone(z)) {
+					t.Errorf("%s: Contains(%v%%%q) = false, want true", tc.prefix, a, z)
+				}
+			}
+		}
+		for _, in := range []string{tc.miss, tc.missAbove, tc.missBelowIs} {
+			a := netip.MustParseAddr(in)
+			if s.Contains(a.WithZone("eth0")) {
+				t.Errorf("%s: Contains(%v%%eth0) = true, want miss", tc.prefix, a)
+			}
+		}
+	}
+}
+
+func TestZonedQueryTable(t *testing.T) {
+	for i, tc := range zoneCases {
+		b := NewTableBuilder[int]()
+		if err := b.AddPrefix(tc.prefix, i+1); err != nil {
+			t.Fatal(err)
+		}
+		tb := b.Freeze()
+		for _, in := range []string{tc.first, tc.mid, tc.last} {
+			a := netip.MustParseAddr(in)
+			for _, z := range []string{"", "eth0", "1"} {
+				if v, ok := tb.Lookup(a.WithZone(z)); !ok || v != i+1 {
+					t.Errorf("%s: Lookup(%v%%%q) = %d, %v; want %d", tc.prefix, a, z, v, ok, i+1)
+				}
+			}
+		}
+		for _, in := range []string{tc.miss, tc.missAbove, tc.missBelowIs} {
+			a := netip.MustParseAddr(in)
+			if v, ok := tb.Lookup(a.WithZone("eth0")); ok {
+				t.Errorf("%s: Lookup(%v%%eth0) = %d, want miss", tc.prefix, a, v)
+			}
+		}
+	}
+}
+
+// The combined case: the three prefixes together, nested fe80::1/128 inside fe80::/64.
+func TestZonedQueryCombined(t *testing.T) {
+	sb := NewBuilder()
+	tb := NewTableBuilder[int]()
+	for i, tc := range zoneCases {
+		_ = sb.AddPrefix(tc.prefix)
+		_ = tb.AddPrefix(tc.prefix, i+1)
+	}
+	s, tt := sb.Freeze(), tb.Freeze()
+	for _, tc := range zoneCases {
+		for _, in := range []string{tc.first, tc.mid, tc.last, tc.miss, tc.missAbove, tc.missBelowIs} {
+			a := netip.MustParseAddr(in)
+			z := a.WithZone("eth0")
+			if got, want := s.Contains(z), s.Contains(a); got != want {
+				t.Errorf("Set %v: zoned=%v unzoned=%v", a, got, want)
+			}
+			gv, gok := tt.Lookup(z)
+			wv, wok := tt.Lookup(a)
+			if gv != wv || gok != wok {
+				t.Errorf("Table %v: zoned=(%d,%v) unzoned=(%d,%v)", a, gv, gok, wv, wok)
+			}
+		}
+	}
+}
+
+func TestZonedQueryZeroAlloc(t *testing.T) {
+	sb := NewBuilder()
+	tb := NewTableBuilder[int]()
+	for i, tc := range zoneCases {
+		_ = sb.AddPrefix(tc.prefix)
+		_ = tb.AddPrefix(tc.prefix, i+1)
+	}
+	s, tt := sb.Freeze(), tb.Freeze()
+	plain := netip.MustParseAddr("fe80::ffff:ffff:ffff:ffff")
+	zoned := plain.WithZone("eth0")
+	var sink bool
+	for _, a := range []netip.Addr{plain, zoned} {
+		if n := testing.AllocsPerRun(100, func() { sink = s.Contains(a) }); n != 0 {
+			t.Errorf("Set.Contains(%v): %v allocs, want 0", a, n)
+		}
+		if n := testing.AllocsPerRun(100, func() { _, sink = tt.Lookup(a) }); n != 0 {
+			t.Errorf("Table.Lookup(%v): %v allocs, want 0", a, n)
+		}
+	}
+	_ = sink
+}
