@@ -106,8 +106,8 @@ func TestFreezeRetention(t *testing.T) {
 	if s.Len() != 1 {
 		t.Fatalf("Len() = %d, want 1", s.Len())
 	}
-	if c := cap(s.v4); c > 8 {
-		t.Errorf("cap(s.v4) = %d, want <= 8 (Set retains builder storage)", c)
+	if c := cap(s.lo4) + cap(s.hi4); c != 2 {
+		t.Errorf("cap(lo4)+cap(hi4) = %d, want 2 (Set retains builder storage)", c)
 	}
 }
 

@@ -11,11 +11,11 @@ CIDR prefix is a contiguous **range** of those integers — `1.1.1.0/24` is exac
 "is this address covered?" is interval membership.
 
 The whole library rests on one representation: **sorted arrays of address
-ranges, searched with binary search.** Addresses are `net/netip.Addr` values —
-comparable and fixed-size (24 bytes) — so a range array is one contiguous block
-of memory with no pointer-chasing on the query path and no per-query
-allocation. (Each `Addr` carries one shared, interned zone handle, so the array
-is flat but not pointer-free; see [Memory](#memory).)
+ranges, searched with binary search.** Builders work in `net/netip.Addr`
+values; Freeze converts the result to plain integers — `uint32` for IPv4, a pair
+of `uint64` words for IPv6 — so a range array is one contiguous, pointer-free
+block of memory with no pointer-chasing on the query path and no per-query
+allocation. (See [Memory](#memory).)
 
 IPv4 and IPv6 are kept in separate arrays within each structure; a query is
 routed to one by address family, then binary-searched.
@@ -96,8 +96,10 @@ Queries allocate nothing. Build allocates the arrays once.
 
 ## Memory
 
-A `Set` interval is two `netip.Addr` values; a `Table` segment is one `Addr`
-plus a 32-bit index. Both are flat, contiguous arrays — no per-node object, no
+A frozen `Set` interval is two integers (2×4 bytes for IPv4, 2×16 for IPv6); a
+frozen `Table` segment is one integer start plus a 32-bit value index (8 bytes
+for IPv4, 20 for IPv6), held in parallel arrays. Both are flat, contiguous
+arrays — no per-node object, no
 child pointers, no interface headers. In a design-time comparison this was **roughly 8–60× less
 memory than the equivalent path-compressed trie**, whose every node carries
 parent and child pointers, a mask, and an entry interface. The ratio grew
@@ -107,12 +109,13 @@ reproduced here, so treat the figures as the design rationale, not as a
 reproducible benchmark. (The `Set`/`Table` figures in [Benchmarks](#benchmarks)
 do reproduce: `go test -bench .`.)
 
-The arrays are flat and contiguous, but not pointer-free: every `netip.Addr`
-contains a `unique.Handle` for its IPv6 zone (a pointer to one shared, interned
-value). Persisting a set therefore means encoding its addresses (for example
-with `Addr.As16`) and decoding them on load, not dumping the memory — and for
-the sizes these sets typically reach, an in-memory rebuild from the source text
-is fast enough that persistence is rarely worth the complexity.
+The arrays are flat, contiguous and pointer-free: plain `uint32` and `uint64`
+words that the garbage collector never scans. (Builders still hold `netip.Addr`
+values, which carry a pointer to a shared, interned IPv6 zone, but those are
+transient and dropped once Freeze has converted them.) The integer arrays could
+be written out directly, but for the sizes these sets typically reach, an
+in-memory rebuild from the source text is fast enough that persistence is rarely
+worth the complexity.
 
 ## Benchmarks
 

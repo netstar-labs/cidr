@@ -225,9 +225,9 @@ func TestAddRangeZoned(t *testing.T) {
 			t.Errorf("Table.Lookup(%s) ok, want miss", q)
 		}
 	}
-	// the stored interval carries no zone
-	if got := s.v6[0]; got.lo.Zone() != "" || got.hi.Zone() != "" {
-		t.Errorf("stored interval keeps a zone: %v-%v", got.lo, got.hi)
+	// the stored interval is the plain, zone-free address range
+	if s.lo6[0] != u128From16(netip.MustParseAddr("fe80::1")) || s.hi6[0] != u128From16(netip.MustParseAddr("fe80::5")) {
+		t.Errorf("stored interval = %v-%v, want fe80::1-fe80::5", s.lo6[0], s.hi6[0])
 	}
 	// the prefix decomposition is zone-independent
 	want := RangePrefixes(netip.MustParseAddr("fe80::1"), netip.MustParseAddr("fe80::5"))

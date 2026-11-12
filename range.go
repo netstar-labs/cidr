@@ -126,6 +126,9 @@ func (a u128) to16() netip.Addr {
 	return netip.AddrFrom16(v)
 }
 
+// less reports a < b, comparing the high word first.
+func (a u128) less(b u128) bool { return a.hi < b.hi || a.hi == b.hi && a.lo < b.lo }
+
 func (a u128) or(b u128) u128 { return u128{a.hi | b.hi, a.lo | b.lo} }
 
 func (a u128) add(b u128) u128 {

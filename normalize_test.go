@@ -57,8 +57,8 @@ func TestMappedPrefixSet(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if s.Len() != 1 || len(s.v4) != 1 || len(s.v6) != 0 {
-				t.Fatalf("stored v4=%d v6=%d, want one v4 interval", len(s.v4), len(s.v6))
+			if s.Len() != 1 || len(s.lo4) != 1 || len(s.lo6) != 0 {
+				t.Fatalf("stored v4=%d v6=%d, want one v4 interval", len(s.lo4), len(s.lo6))
 			}
 			for _, in := range []string{"1.2.3.0", "1.2.3.4", "1.2.3.255"} {
 				for _, a := range mappedAddrs(in) {
@@ -170,8 +170,8 @@ func TestShortMappedPrefixStaysV6(t *testing.T) {
 	if !s.Contains(netip.MustParseAddr("2001:db8::1")) {
 		t.Error("::/0 should still match native IPv6")
 	}
-	if len(s.v4) != 0 {
-		t.Errorf("v4 intervals = %d, want 0", len(s.v4))
+	if len(s.lo4) != 0 {
+		t.Errorf("v4 intervals = %d, want 0", len(s.lo4))
 	}
 
 	tb := NewTableBuilder[int]()
