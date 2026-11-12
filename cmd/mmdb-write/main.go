@@ -161,8 +161,26 @@ func run(in, out, dbType, description string, buildEpoch int64, ipVersion, recor
 // and renames it over path only on success. A pre-existing file's permission bits
 // are kept; a new file gets 0644.
 func writeFileAtomic(path string, write func(w io.Writer) error) (err error) {
+	// A symlinked target is followed, so the rename replaces the file it points
+	// at rather than the link itself.
+	if real, rerr := filepath.EvalSymlinks(path); rerr == nil {
+		path = real
+	}
 	mode := os.FileMode(0o644)
 	if st, serr := os.Stat(path); serr == nil {
+		if !st.Mode().IsRegular() {
+			// A device, FIFO or other special file (e.g. -o /dev/null) cannot be
+			// replaced by rename without destroying it: write through it instead.
+			f, oerr := os.OpenFile(path, os.O_WRONLY, 0)
+			if oerr != nil {
+				return oerr
+			}
+			if err = write(f); err != nil {
+				f.Close()
+				return err
+			}
+			return f.Close()
+		}
 		mode = st.Mode().Perm()
 	}
 	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp*")
