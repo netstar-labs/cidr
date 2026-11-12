@@ -349,7 +349,7 @@ func parseLine(line, reg string) (lo, hi netip.Addr, e rec, ok, malformed bool) 
 			return lo, hi, e, false, true
 		}
 		lo = pfx.Addr()
-		hi = lastAddr6(pfx)
+		hi = cidr.LastAddr(pfx)
 		e.srcBits = int(n)
 	}
 
@@ -366,19 +366,6 @@ func addV4(a netip.Addr, n uint64) (netip.Addr, bool) {
 		return netip.Addr{}, false
 	}
 	return netip.AddrFrom4([4]byte{byte(sum >> 24), byte(sum >> 16), byte(sum >> 8), byte(sum)}), true
-}
-
-// lastAddr6 returns the highest address inside an IPv6 prefix. It is v6-only on
-// purpose: the ipv4 branch of parseLine carries an address *count* and derives
-// its bound with addV4, so a v4 prefix never reaches here. A general version
-// would be an untested, unreachable path. (The library has an equivalent
-// helper at cidr.go, but it is unexported, so package main cannot reach it.)
-func lastAddr6(p netip.Prefix) netip.Addr {
-	b := p.Addr().As16()
-	for i := p.Bits(); i < 128; i++ {
-		b[i/8] |= 1 << (7 - uint(i%8))
-	}
-	return netip.AddrFrom16(b)
 }
 
 // ceilLog2 returns the smallest k with 2^k >= n, for n >= 1.

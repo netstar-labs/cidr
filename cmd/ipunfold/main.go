@@ -154,10 +154,9 @@ func run(r io.Reader, w io.Writer, o opts) (stats, error) {
 		}
 
 		if is4 {
-			lo := to32(p.Addr())
-			aw.expandV4(lo, lo|hostMask4(p.Bits()))
+			aw.expandV4(to32(p.Addr()), to32(cidr.LastAddr(p)))
 		} else {
-			aw.expandV6(p.Addr(), lastV6(p))
+			aw.expandV6(p.Addr(), cidr.LastAddr(p))
 		}
 		if aw.err != nil {
 			return fail(aw.err)
@@ -237,22 +236,6 @@ func appendOctet(dst []byte, v byte) []byte {
 // prefixSize is the number of addresses p covers: 2^(host bits).
 func prefixSize(p netip.Prefix) *big.Int {
 	return new(big.Int).Lsh(big.NewInt(1), uint(p.Addr().BitLen()-p.Bits()))
-}
-
-// hostMask4 has the low 32-bits host bits set. Go defines a shift at or past
-// the operand width as zero, so /32 yields the empty mask without a special case.
-func hostMask4(bits int) uint32 { return ^uint32(0) >> uint(bits) }
-
-// lastV6 returns the all-host-bits-set address of an IPv6 prefix, filling in
-// whole bytes from the right and a partial byte at the mask boundary.
-func lastV6(p netip.Prefix) netip.Addr {
-	b := p.Addr().As16()
-	for i, h := 15, 128-p.Bits(); h > 0; i-- {
-		n := min(h, 8)
-		b[i] |= byte(0xff) >> (8 - n)
-		h -= n
-	}
-	return netip.AddrFrom16(b)
 }
 
 func to32(a netip.Addr) uint32 {

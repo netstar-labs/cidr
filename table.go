@@ -53,7 +53,7 @@ func (b *TableBuilder[V]) Add(p netip.Prefix, v V) {
 	p = unmapPrefix(p).Masked()
 	vi := int32(len(b.vals))
 	b.vals = append(b.vals, v)
-	e := pfx{lo: p.Addr(), hi: lastAddr(p), length: p.Bits(), vi: vi}
+	e := pfx{lo: p.Addr(), hi: LastAddr(p), length: p.Bits(), vi: vi}
 	if p.Addr().Is4() {
 		b.v4 = append(b.v4, e)
 	} else {

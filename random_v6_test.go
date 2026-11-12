@@ -95,7 +95,7 @@ func randV6Queries(r *rand.Rand, prefixes []netip.Prefix) []netip.Addr {
 		}
 	}
 	for _, p := range prefixes {
-		first, last := p.Addr(), lastAddr(p)
+		first, last := p.Addr(), LastAddr(p)
 		add(first)
 		add(first.Prev())
 		add(last)
@@ -180,7 +180,7 @@ func randV6Range(r *rand.Rand, bases []netip.Addr) (lo, hi netip.Addr) {
 		hi = lo
 	default:
 		p := netip.PrefixFrom(randTail(r, base, 32), 32+r.Intn(97)).Masked()
-		lo, hi = p.Addr(), lastAddr(p)
+		lo, hi = p.Addr(), LastAddr(p)
 	}
 	if hi.Less(lo) {
 		lo, hi = hi, lo
