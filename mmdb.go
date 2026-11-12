@@ -99,7 +99,9 @@ func (m *MMDB) Close() error { return nil }
 
 // Lookup returns the record for ip as a decoded map (the shape depends on the
 // database's schema: ASN, country, or any custom fields the producer packed).
-// ok is false when ip has no record.
+// ok is false when ip has no record. A record that is not a map (legal in the
+// format, though no cidr writer produces one) is reported as record == nil with
+// ok == true: the address has a record, but it is not representable as a map.
 func (m *MMDB) Lookup(ip net.IP) (record map[string]any, ok bool, err error) {
 	v, found, err := m.lookupValue(ip)
 	if err != nil || !found {
@@ -128,10 +130,10 @@ func (m *MMDB) lookupValue(ip net.IP) (any, bool, error) {
 		node = rec
 	}
 	switch {
-	case node == m.nodeCount:
-		return nil, false, nil // the empty record: no data
-	case node < m.nodeCount:
-		return nil, false, nil // ran out of address bits inside the tree
+	case node <= m.nodeCount:
+		// node == nodeCount is the empty record (no data); node < nodeCount means the
+		// address ran out of bits inside the tree. Either way: no record.
+		return nil, false, nil
 	case node-m.nodeCount < 16:
 		// A data pointer is (node - nodeCount) = 16 + offset into the data section;
 		// values 1..15 would point into the 16-byte zero separator, which is not data.
