@@ -126,3 +126,47 @@ func TestFreezeDoesNotMutateBuilder(t *testing.T) {
 		t.Errorf("Freeze mutated b.v6:\n got %v\nwant %v", b.v6, v6)
 	}
 }
+
+// TestMergeRangesInPlace covers both exits of mergeRanges: the merge result
+// returned as the work copy (few intervals merged away) and the trimmed copy
+// (most merged away). Either way the input is untouched, nothing aliases it,
+// and the result matches a brute-force merge.
+func TestMergeRangesInPlace(t *testing.T) {
+	a := func(n int) netip.Addr { return netip.AddrFrom4([4]byte{10, byte(n >> 16), byte(n >> 8), byte(n)}) }
+	mk := func(lo, hi int) iprange { return iprange{lo: a(lo), hi: a(hi)} }
+	for _, tc := range []struct {
+		name    string
+		in      []iprange
+		want    []iprange
+		trimmed bool // result is a fresh, tight copy
+	}{
+		{"none merge", []iprange{mk(30, 31), mk(10, 11), mk(20, 21), mk(40, 41)},
+			[]iprange{mk(10, 11), mk(20, 21), mk(30, 31), mk(40, 41)}, false},
+		{"one of four merges", []iprange{mk(30, 31), mk(10, 11), mk(11, 12), mk(40, 41)},
+			[]iprange{mk(10, 12), mk(30, 31), mk(40, 41)}, false}, // 3 >= 4*3/4
+		{"adjacent and nested", []iprange{mk(5, 9), mk(10, 11), mk(0, 20), mk(8, 8), mk(21, 22), mk(100, 101)},
+			[]iprange{mk(0, 22), mk(100, 101)}, true},
+		{"all merge", []iprange{mk(1, 2), mk(3, 4), mk(2, 3), mk(0, 0)},
+			[]iprange{mk(0, 4)}, true},
+		{"single", []iprange{mk(1, 2)}, []iprange{mk(1, 2)}, false},
+		{"empty", nil, nil, false},
+	} {
+		in := slices.Clone(tc.in)
+		got := mergeRanges(in)
+		if !slices.Equal(in, tc.in) {
+			t.Errorf("%s: input was modified: %v -> %v", tc.name, tc.in, in)
+		}
+		if !slices.Equal(got, tc.want) {
+			t.Errorf("%s: got %v, want %v", tc.name, got, tc.want)
+		}
+		if len(got) > 0 && len(in) > 0 && &got[0] == &in[0] {
+			t.Errorf("%s: result aliases the input", tc.name)
+		}
+		if len(got) > 1 && cap(got) != len(got) && !tc.trimmed {
+			t.Errorf("%s: cap = %d, want len %d (append must not reach the work array)", tc.name, cap(got), len(got))
+		}
+		if tc.trimmed && cap(got) >= len(in) {
+			t.Errorf("%s: result of %d from %d inputs was not trimmed (cap %d)", tc.name, len(got), len(in), cap(got))
+		}
+	}
+}
