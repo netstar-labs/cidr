@@ -262,16 +262,33 @@ type budget struct{ left int }
 // of 65821+2^24-1 bytes), and leaves wide headroom: the costliest record in a real
 // 1.4 GB DB-IP database used under 10,000 units.
 func newBudget(sectionLen int) *budget {
-	return &budget{left: min(maxDecodeCost, max(minDecodeCost, 4*sectionLen))}
+	// 4*sectionLen is only formed below the ceiling's quarter: on a 32-bit int it would wrap.
+	if sectionLen >= maxDecodeCost/4 {
+		return &budget{left: maxDecodeCost}
+	}
+	return &budget{left: max(minDecodeCost, 4*sectionLen)}
 }
 
-// charge spends n units, failing once the allowance is exhausted.
+// charge spends n units, failing once the allowance is exhausted. n may be any
+// non-negative int: it is compared, not subtracted blindly, so it cannot wrap left.
 func (b *budget) charge(n int) error {
-	b.left -= n
-	if b.left < 0 {
+	if n > b.left {
+		b.left = -1
 		return errBudget
 	}
+	b.left -= n
 	return nil
+}
+
+// chargeEach spends count*unit units. count comes from the file (up to the bytes that
+// remain, which on a 32-bit int times a cost can exceed MaxInt32), so the product is
+// formed only once it is known to fit in the remaining allowance.
+func (b *budget) chargeEach(count, unit int) error {
+	if count > b.left/unit {
+		b.left = -1
+		return errBudget
+	}
+	return b.charge(count * unit)
 }
 
 // decodeMMDB decodes one value from buf at off. ptrBase is the offset pointers are
@@ -408,8 +425,11 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int, bud *budget) (any, int, err
 		if size > avail { // each entry needs >= 1 byte: reject an amplified count
 			return nil, 0, errTrunc
 		}
-		// size <= avail, so size*mapEntryCost cannot overflow; charge before allocating
-		if err := bud.charge(mapBaseCost + size*mapEntryCost); err != nil {
+		// charge the full declared count before allocating (chargeEach is overflow-safe)
+		if err := bud.charge(mapBaseCost); err != nil {
+			return nil, 0, err
+		}
+		if err := bud.chargeEach(size, mapEntryCost); err != nil {
 			return nil, 0, err
 		}
 		m := make(map[string]any, size)
@@ -454,8 +474,8 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int, bud *budget) (any, int, err
 		if size > avail { // each element needs >= 1 byte: reject an amplified count
 			return nil, 0, errTrunc
 		}
-		// size <= avail, so size*elemCost cannot overflow; charge before allocating
-		if err := bud.charge(size * elemCost); err != nil {
+		// charge the full declared count before allocating (chargeEach is overflow-safe)
+		if err := bud.chargeEach(size, elemCost); err != nil {
 			return nil, 0, err
 		}
 		arr := make([]any, 0, size)

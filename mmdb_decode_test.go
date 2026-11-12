@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"testing"
 )
@@ -375,6 +376,75 @@ func TestDecodeMMDBFixedWidths(t *testing.T) {
 	for _, buf := range [][]byte{mk(3, 8, pad(7)), mk(15, 4, pad(3)), mk(6, 4, pad(3))} {
 		if _, _, err := decodeTest(buf, 0, 0, 0); !errors.Is(err, errTrunc) {
 			t.Errorf("truncated %x: err = %v, want errTrunc", buf, err)
+		}
+	}
+}
+
+// The budget arithmetic must not wrap a 32-bit int: these boundary cases go through the
+// helpers with values that overflow int32 (and, for the 64-bit extremes, int64), so the
+// 386 CI job exercises them for real.
+func TestBudgetArithmeticOverflowSafe(t *testing.T) {
+	for _, n := range []int{1 << 29, 1 << 30, math.MaxInt32, math.MaxInt} {
+		if got := newBudget(n).left; got != maxDecodeCost {
+			t.Errorf("newBudget(%d) = %d, want the ceiling %d", n, got, maxDecodeCost)
+		}
+	}
+	for n, want := range map[int]int{-1: minDecodeCost, 0: minDecodeCost, 1 << 18: minDecodeCost, 1<<18 + 1: 4<<18 + 4,
+		1<<23 - 1: 4<<23 - 4, 1 << 23: maxDecodeCost} {
+		if got := newBudget(n).left; got != want {
+			t.Errorf("newBudget(%d) = %d, want %d", n, got, want)
+		}
+	}
+	// charge: a huge n fails and does not wrap the remaining allowance back positive
+	for _, n := range []int{maxDecodeCost + 1, 1 << 30, math.MaxInt32, math.MaxInt} {
+		b := &budget{left: maxDecodeCost}
+		if err := b.charge(n); err != errBudget {
+			t.Errorf("charge(%d) err = %v, want errBudget", n, err)
+		}
+		if b.left >= 0 {
+			t.Errorf("charge(%d) left = %d, want negative", n, b.left)
+		}
+		if err := b.charge(1); err != errBudget { // a failed budget stays failed
+			t.Errorf("after charge(%d): charge(1) err = %v, want errBudget", n, err)
+		}
+	}
+	// chargeEach: counts whose product exceeds MaxInt32 (45M*48 = 2.16e9) or MaxInt
+	for _, c := range []struct{ count, unit int }{
+		{45_000_000, mapEntryCost}, {math.MaxInt32, elemCost}, {math.MaxInt / 2, mapEntryCost}, {math.MaxInt, 2},
+	} {
+		b := &budget{left: maxDecodeCost}
+		if err := b.chargeEach(c.count, c.unit); err != errBudget {
+			t.Errorf("chargeEach(%d, %d) err = %v, want errBudget", c.count, c.unit, err)
+		}
+	}
+	// and exact fits still charge exactly count*unit
+	b := &budget{left: 1000}
+	if err := b.chargeEach(20, 48); err != nil || b.left != 40 {
+		t.Errorf("chargeEach(20, 48): err = %v, left = %d, want nil, 40", err, b.left)
+	}
+	if err := b.chargeEach(0, 48); err != nil || b.left != 40 {
+		t.Errorf("chargeEach(0, 48): err = %v, left = %d", err, b.left)
+	}
+	if err := b.chargeEach(1, 41); err != errBudget {
+		t.Errorf("chargeEach(1, 41) with 40 left: err = %v", err)
+	}
+}
+
+// A map or array declaring 45M entries (45M*48 = 2.16e9 map units, past MaxInt32) in a
+// 45 MB buffer: the declared count passes the size <= remaining-bytes test, so the charge
+// is what stops it, and it must stop it before anything is allocated.
+func TestDecodeMMDBBudgetCountTimesCostPastInt32(t *testing.T) {
+	const n = 45_000_000
+	body := make([]byte, n)
+	for _, typ := range []int{7, 11} {
+		buf := append(hdr(typ, n), body...)
+		var err error
+		got := allocDelta(func() { _, _, err = decodeMMDB(buf, 0, 0, 0, &budget{left: maxDecodeCost}) })
+		if err != errBudget {
+			t.Errorf("type %d: err = %v, want errBudget", typ, err)
+		}
+		if got > 8<<20 {
+			t.Errorf("type %d: allocated %d bytes before failing", typ, got)
 		}
 	}
 }
