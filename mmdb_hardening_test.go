@@ -2,9 +2,12 @@ package cidr
 
 import (
 	"bytes"
+	"encoding/binary"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -175,5 +178,74 @@ func TestMMDBOpenRejectsBadVersions(t *testing.T) {
 		encStr("binary_format_major_version"), encStr("2"), encStr("ip_version"), encUint(5, 4)))
 	if _, err := OpenMMDBBytes(bad); err == nil {
 		t.Error("string binary_format_major_version: want an error")
+	}
+}
+
+// A data pointer is checked against the data section as an unsigned offset before it is
+// converted to int, so on a 32-bit platform a record near 2^32 cannot wrap into range.
+// Records at or past the end of the data section — including into the metadata that
+// follows it — and records at the far end of the 32-bit range are errors.
+func TestMMDBRecordPastDataSection(t *testing.T) {
+	data := []byte{0xe0} // one empty map: the data section is 1 byte
+	// the last valid record is nodeCount+16; +17 is one past the section (the marker)
+	for _, rec := range []uint{1 + 16 + 1, 1 + 16 + 2, 1 + 16 + 1000} {
+		db, err := OpenMMDBBytes(buildDB(rec, data, metaKV()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := lookupAny(db); err == nil || !strings.Contains(err.Error(), "past the data section") {
+			t.Errorf("record %d: err = %v, want a past-the-data-section error", rec, err)
+		}
+	}
+	// 32-bit records, one node, both records 0xFFFFFFF0 (and 0xFFFFFFFF).
+	for _, rec := range []uint32{0xfffffff0, 0xffffffff, 0x80000010, 0x7fffffff} {
+		var b []byte
+		for i := 0; i < 2; i++ {
+			b = binary.BigEndian.AppendUint32(b, rec)
+		}
+		b = append(b, make([]byte, 16)...)
+		b = append(b, data...)
+		b = append(b, metaMarker...)
+		b = append(b, encMapOf(
+			encStr("binary_format_major_version"), encUint(5, 2),
+			encStr("node_count"), encUint(6, 1),
+			encStr("record_size"), encUint(5, 32),
+			encStr("ip_version"), encUint(5, 4))...)
+		db, err := OpenMMDBBytes(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := lookupAny(db); err == nil || !strings.Contains(err.Error(), "past the data section") {
+			t.Errorf("32-bit record %#x: err = %v, want a past-the-data-section error", rec, err)
+		}
+	}
+}
+
+// Metadata numbers are not truncated: a value above MaxInt is an error (on a 32-bit
+// platform node_count 1<<32 would otherwise wrap to 0).
+func TestMMDBMetadataNumbersNotTruncated(t *testing.T) {
+	if _, err := uintOf(map[string]any{"k": uint64(math.MaxInt) + 1}, "k"); err == nil {
+		t.Error("uintOf(MaxInt+1): want an error")
+	}
+	if v, err := uintOf(map[string]any{"k": uint64(math.MaxInt)}, "k"); err != nil || v != math.MaxInt {
+		t.Errorf("uintOf(MaxInt) = %d, %v", v, err)
+	}
+	for _, m := range []map[string]any{{}, {"k": "str"}, {"k": int32(5)}} {
+		if v, err := uintOf(m, "k"); v != 0 || err != nil {
+			t.Errorf("uintOf(%v) = %d, %v; want 0, nil", m, v, err)
+		}
+	}
+	valid := map[string]uint64{"binary_format_major_version": 2, "node_count": 1, "record_size": 24, "ip_version": 4}
+	for key := range valid {
+		var flat [][]byte
+		for k, v := range valid {
+			if k == key {
+				v |= 1 << 32 // 2^32 + the valid value: a 32-bit uint would truncate it to the valid one
+			}
+			flat = append(flat, encStr(k), encUint(9, v))
+		}
+		if _, err := OpenMMDBBytes(buildDB(0, nil, encMapOf(flat...))); err == nil {
+			t.Errorf("%s = 2^32+valid: want an error", key)
+		}
 	}
 }

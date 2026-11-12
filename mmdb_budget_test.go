@@ -427,7 +427,7 @@ func TestMMDBBudgetBytesPerUnit(t *testing.T) {
 		{"map of empty strings", append(hdr(7, n), mapKeys...), 0},
 	}
 	for _, s := range shapes {
-		bud := &budget{left: 1 << 40}
+		bud := &budget{left: 1 << 30}
 		start := bud.left
 		var err error
 		got := allocDelta(func() { _, _, err = decodeMMDB(s.buf, s.off, 0, 0, bud) })

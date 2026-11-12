@@ -64,17 +64,31 @@ func OpenMMDBBytes(data []byte) (*MMDB, error) {
 	}
 	// Only major version 2 of the format is understood (a missing key is as invalid as a
 	// different value), and a database indexes either IPv4 or IPv6 addresses.
-	if uintOf(mm["binary_format_major_version"]) != 2 {
+	major, err := uintOf(mm, "binary_format_major_version")
+	if err != nil {
+		return nil, err
+	}
+	if major != 2 {
 		return nil, fmt.Errorf("cidr: mmdb: unsupported binary_format_major_version %v (want 2)", mm["binary_format_major_version"])
 	}
-	if v := uintOf(mm["ip_version"]); v != 4 && v != 6 {
+	ipVersion, err := uintOf(mm, "ip_version")
+	if err != nil {
+		return nil, err
+	}
+	if ipVersion != 4 && ipVersion != 6 {
 		return nil, fmt.Errorf("cidr: mmdb: unsupported ip_version %v (want 4 or 6)", mm["ip_version"])
 	}
-	recordSize := uintOf(mm["record_size"])
+	recordSize, err := uintOf(mm, "record_size")
+	if err != nil {
+		return nil, err
+	}
 	if recordSize != 24 && recordSize != 28 && recordSize != 32 {
 		return nil, fmt.Errorf("cidr: mmdb: unsupported record_size %d", recordSize)
 	}
-	nodeCount := uintOf(mm["node_count"])
+	nodeCount, err := uintOf(mm, "node_count")
+	if err != nil {
+		return nil, err
+	}
 	nodeSize := recordSize * 2 / 8 // 6, 7, or 8 (recordSize validated above)
 	// bound node_count against the file: nodeCount*nodeSize must fit, tested with a
 	// division so a crafted node_count cannot overflow the multiply and wrap treeSize
@@ -87,11 +101,11 @@ func OpenMMDBBytes(data []byte) (*MMDB, error) {
 		data:       data,
 		nodeCount:  nodeCount,
 		recordSize: recordSize,
-		ipVersion:  int(uintOf(mm["ip_version"])),
+		ipVersion:  int(ipVersion),
 		nodeSize:   nodeSize,
 		treeSize:   treeSize,
 		dataStart:  int(treeSize) + 16,
-		dataLen:    idx - int(treeSize) - 16,
+		dataLen:    max(0, idx-int(treeSize)-16), // 0 if the tree runs into the metadata: no data
 		metadata:   mm,
 	}, nil
 }
@@ -147,7 +161,13 @@ func (m *MMDB) lookupValue(ip net.IP) (any, bool, error) {
 		// values 1..15 would point into the 16-byte zero separator, which is not data.
 		return nil, false, errors.New("cidr: mmdb: record points into the data-section separator")
 	}
-	off := int(m.treeSize) + int(node-m.nodeCount) // == dataStart + (node - nodeCount - 16)
+	// rel is the offset into the data section. Test it as a uint BEFORE converting to int:
+	// a 32-bit node can exceed MaxInt32, and int(node)-int(nodeCount) would wrap.
+	rel := node - m.nodeCount - 16
+	if rel >= uint(m.dataLen) {
+		return nil, false, errors.New("cidr: mmdb: record points past the data section")
+	}
+	off := m.dataStart + int(rel)
 	v, _, err := decodeMMDB(m.data, off, m.dataStart, 0, newBudget(m.dataLen))
 	if err != nil {
 		return nil, false, err
@@ -483,11 +503,17 @@ func beUint(b []byte) uint64 {
 	return v
 }
 
-// uintOf coerces a decoded metadata number (always a uint64 from the decoder) to
-// a uint; anything else yields 0.
-func uintOf(v any) uint {
-	if u, ok := v.(uint64); ok {
-		return uint(u)
+// uintOf reads the metadata number mm[key] (always a uint64 from the decoder) as a uint.
+// An absent or non-numeric value yields 0 (each caller validates the value it needs); a
+// value above math.MaxInt is an error, not truncated (a uint is 32 bits on some platforms,
+// and everything built from these numbers is converted to int).
+func uintOf(mm map[string]any, key string) (uint, error) {
+	u, ok := mm[key].(uint64)
+	if !ok {
+		return 0, nil
 	}
-	return 0
+	if u > math.MaxInt {
+		return 0, fmt.Errorf("cidr: mmdb: metadata %s %d out of range", key, u)
+	}
+	return uint(u), nil
 }
