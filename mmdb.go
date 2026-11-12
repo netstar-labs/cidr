@@ -35,7 +35,17 @@ type MMDB struct {
 	dataStart  int  // treeSize + 16; pointer base for the data section
 	dataLen    int  // bytes in the data section (sizes the per-Lookup decode budget)
 	metadata   map[string]any
+
+	// v4Start is the node reached after the 96 zero bits that prefix an IPv4 address in an
+	// IPv6 tree (::/96), computed once at open so a v4 lookup starts there instead of
+	// walking those bits every time. v4StartOK is false (and lookups walk all 128 bits) for
+	// an IPv4 tree, or if that walk failed: a malformed file then behaves as it always did.
+	v4Start   uint
+	v4StartOK bool
 }
+
+// v4PrefixBits is the number of leading zero bits of an IPv4-mapped-in-IPv6 address.
+const v4PrefixBits = 96
 
 // OpenMMDB reads and parses the MaxMind DB at path.
 func OpenMMDB(path string) (*MMDB, error) {
@@ -97,7 +107,7 @@ func OpenMMDBBytes(data []byte) (*MMDB, error) {
 		return nil, errors.New("cidr: mmdb: truncated (search tree exceeds file)")
 	}
 	treeSize := nodeCount * nodeSize
-	return &MMDB{
+	m := &MMDB{
 		data:       data,
 		nodeCount:  nodeCount,
 		recordSize: recordSize,
@@ -107,7 +117,25 @@ func OpenMMDBBytes(data []byte) (*MMDB, error) {
 		dataStart:  int(treeSize) + 16,
 		dataLen:    max(0, idx-int(treeSize)-16), // 0 if the tree runs into the metadata: no data
 		metadata:   mm,
-	}, nil
+	}
+	if m.ipVersion == 6 {
+		m.v4Start, m.v4StartOK = m.walkZeros(v4PrefixBits)
+	}
+	return m, nil
+}
+
+// walkZeros follows the left (zero-bit) record from the root for up to n bits, stopping
+// early at a leaf or data record exactly as a lookup of an address of zero bits would.
+// ok is false if reading a node failed.
+func (m *MMDB) walkZeros(n int) (node uint, ok bool) {
+	for i := 0; i < n && node < m.nodeCount; i++ {
+		rec, err := m.record(node, false)
+		if err != nil {
+			return 0, false
+		}
+		node = rec
+	}
+	return node, true
 }
 
 // Metadata returns the decoded metadata map (node_count, record_size,
@@ -133,23 +161,37 @@ func (m *MMDB) Lookup(ip net.IP) (record map[string]any, ok bool, err error) {
 	return mp, true, nil
 }
 
-// lookupValue walks the tree for ip and decodes the pointed-to data value.
-func (m *MMDB) lookupValue(ip net.IP) (any, bool, error) {
-	addr := m.normalize(ip)
+// lookupNode walks the tree for ip and returns the record value it ends on (see
+// lookupValue for how to read it).
+func (m *MMDB) lookupNode(ip net.IP) (uint, error) {
+	var buf [16]byte
+	addr, v4 := m.normalize(ip, &buf)
 	if addr == nil {
-		return nil, false, fmt.Errorf("cidr: mmdb: %v cannot be looked up in an IPv%d database", ip, m.ipVersion)
+		return 0, fmt.Errorf("cidr: mmdb: %v cannot be looked up in an IPv%d database", ip, m.ipVersion)
 	}
-	node := uint(0)
-	for i := 0; i < len(addr)*8; i++ {
+	node, i := uint(0), 0
+	if v4 && m.v4StartOK {
+		node, i = m.v4Start, v4PrefixBits // the first 96 bits are known: skip them
+	}
+	for ; i < len(addr)*8; i++ {
 		if node >= m.nodeCount {
 			break
 		}
 		bit := (addr[i>>3] >> (7 - uint(i&7))) & 1
 		rec, err := m.record(node, bit == 1)
 		if err != nil {
-			return nil, false, err
+			return 0, err
 		}
 		node = rec
+	}
+	return node, nil
+}
+
+// lookupValue walks the tree for ip and decodes the pointed-to data value.
+func (m *MMDB) lookupValue(ip net.IP) (any, bool, error) {
+	node, err := m.lookupNode(ip)
+	if err != nil {
+		return nil, false, err
 	}
 	switch {
 	case node <= m.nodeCount:
@@ -175,22 +217,24 @@ func (m *MMDB) lookupValue(ip net.IP) (any, bool, error) {
 	return v, true, nil
 }
 
-// normalize renders ip as the byte width the database indexes on. An IPv4
-// address in an IPv6 database is placed under ::/96 (12 zero bytes + v4), the
-// location mmdbwriter/GeoLite2 use for the IPv4 subtree.
-func (m *MMDB) normalize(ip net.IP) []byte {
-	if v4 := ip.To4(); v4 != nil {
+// normalize renders ip as the byte width the database indexes on, using buf for the
+// 16-byte form so a lookup does not allocate; v4 reports that ip is an IPv4 address (in
+// an IPv6 database it is placed under ::/96: 12 zero bytes + v4, the location
+// mmdbwriter/GeoLite2 use for the IPv4 subtree). It returns nil for an IPv6 address in
+// an IPv4 database or an invalid ip.
+func (m *MMDB) normalize(ip net.IP, buf *[16]byte) (addr []byte, v4 bool) {
+	if a := ip.To4(); a != nil {
 		if m.ipVersion == 4 {
-			return v4
+			return a, true
 		}
-		b := make([]byte, 16)
-		copy(b[12:], v4)
-		return b
+		*buf = [16]byte{}
+		copy(buf[12:], a)
+		return buf[:], true
 	}
 	if m.ipVersion == 4 {
-		return nil // an IPv6 address cannot be found in a v4-only database
+		return nil, false // an IPv6 address cannot be found in a v4-only database
 	}
-	return ip.To16()
+	return ip.To16(), false
 }
 
 // record reads the left (right==false) or right record value of a tree node.
