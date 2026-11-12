@@ -352,7 +352,10 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int, bud *budget) (any, int, err
 			return nil, 0, err
 		}
 		return string(buf[off : off+size]), off + size, nil
-	case 3: // double (IEEE-754 64-bit)
+	case 3: // double (IEEE-754 64-bit): exactly 8 bytes
+		if size != 8 {
+			return nil, 0, errWidth
+		}
 		if avail < 8 {
 			return nil, 0, errTrunc
 		}
@@ -365,8 +368,11 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int, bud *budget) (any, int, err
 			return nil, 0, err
 		}
 		return append([]byte(nil), buf[off:off+size]...), off + size, nil
-	case 5, 6, 9: // uint16 / uint32 / uint64
-		if size > 8 || size > avail { // reject a width beyond the fixed type (wrong value)
+	case 5, 6, 9: // uint16 / uint32 / uint64: at most 2 / 4 / 8 bytes (fewer = leading zeros)
+		if size > uintMaxWidth[typ] {
+			return nil, 0, errWidth
+		}
+		if size > avail {
 			return nil, 0, errTrunc
 		}
 		return beUint(buf[off : off+size]), off + size, nil
@@ -398,12 +404,18 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int, bud *budget) (any, int, err
 		}
 		return m, o, nil
 	case 8: // int32 (two's complement, up to 4 bytes)
-		if size > 4 || size > avail {
+		if size > 4 {
+			return nil, 0, errWidth
+		}
+		if size > avail {
 			return nil, 0, errTrunc
 		}
 		return int32(uint32(beUint(buf[off : off+size]))), off + size, nil
 	case 10: // uint128
-		if size > 16 || size > avail {
+		if size > 16 {
+			return nil, 0, errWidth
+		}
+		if size > avail {
 			return nil, 0, errTrunc
 		}
 		if err := bud.charge(size); err != nil {
@@ -429,9 +441,15 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int, bud *budget) (any, int, err
 			o = no
 		}
 		return arr, o, nil
-	case 14: // boolean (size is 0 or 1)
-		return size != 0, off, nil
-	case 15: // float (IEEE-754 32-bit)
+	case 14: // boolean: the value is the size, which is 0 or 1 (no payload)
+		if size > 1 {
+			return nil, 0, errWidth
+		}
+		return size == 1, off, nil
+	case 15: // float (IEEE-754 32-bit): exactly 4 bytes
+		if size != 4 {
+			return nil, 0, errWidth
+		}
 		if avail < 4 {
 			return nil, 0, errTrunc
 		}
@@ -440,7 +458,13 @@ func decodeMMDB(buf []byte, off, ptrBase, depth int, bud *budget) (any, int, err
 	return nil, 0, fmt.Errorf("cidr: mmdb: unknown data type %d", typ)
 }
 
-var errTrunc = errors.New("cidr: mmdb: truncated data section")
+// uintMaxWidth is the widest payload of the unsigned integer types, indexed by type number.
+var uintMaxWidth = [...]int{5: 2, 6: 4, 9: 8}
+
+var (
+	errTrunc = errors.New("cidr: mmdb: truncated data section")
+	errWidth = errors.New("cidr: mmdb: invalid size for the value's type")
+)
 
 // beUint reads up to 8 big-endian bytes as a uint64.
 func beUint(b []byte) uint64 {
