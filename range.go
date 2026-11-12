@@ -67,21 +67,15 @@ func AppendRangePrefixes(dst []netip.Prefix, lo, hi netip.Addr) []netip.Prefix {
 	full := lowMask(width) // all-ones for the family
 
 	for {
-		// Largest block by alignment: a has this many trailing zero bits.
-		alignK := a.trailingZeros()
-		if alignK > width {
-			alignK = width
-		}
 		// Largest block by remaining size: 2^fitK <= (b - a + 1).
 		d := b.sub(a)
 		fitK := width
-		if d.cmp(full) != 0 { // not the whole space (avoids the +1 overflow)
+		if d != full { // not the whole space (avoids the +1 overflow)
 			fitK = d.add(u128{0, 1}).highBit()
 		}
-		k := alignK
-		if fitK < k {
-			k = fitK
-		}
+		// Largest block by alignment is a's trailing zero bits; take the
+		// smallest of that, the family width and the size bound.
+		k := min(a.trailingZeros(), width, fitK)
 
 		base := a.to4()
 		if !v4 {
@@ -90,8 +84,11 @@ func AppendRangePrefixes(dst []netip.Prefix, lo, hi netip.Addr) []netip.Prefix {
 		dst = append(dst, netip.PrefixFrom(base, width-k))
 
 		// blockLast = a + 2^k - 1, computed as a | (low-k-bits) to avoid overflow.
+		// blockLast never exceeds b: k <= alignK (a is aligned to 2^k) and
+		// k <= fitK (2^k <= b-a+1). This relies on validRange having rejected
+		// lo > hi and mixed families above; a caller that skipped it could loop forever.
 		blockLast := a.or(lowMask(k))
-		if blockLast.cmp(b) >= 0 {
+		if blockLast == b {
 			break
 		}
 		a = blockLast.add(u128{0, 1})
@@ -140,44 +137,22 @@ func (a u128) sub(b u128) u128 {
 	return u128{hi, lo}
 }
 
-func (a u128) cmp(b u128) int {
-	switch {
-	case a.hi != b.hi:
-		if a.hi < b.hi {
-			return -1
-		}
-		return 1
-	case a.lo != b.lo:
-		if a.lo < b.lo {
-			return -1
-		}
-		return 1
-	default:
-		return 0
-	}
-}
-
-// trailingZeros returns the number of low zero bits (128 for the zero value).
+// trailingZeros returns the number of low zero bits (128 for the zero value;
+// math/bits returns 64 for a zero word).
 func (a u128) trailingZeros() int {
 	if a.lo != 0 {
 		return bits.TrailingZeros64(a.lo)
 	}
-	if a.hi != 0 {
-		return 64 + bits.TrailingZeros64(a.hi)
-	}
-	return 128
+	return 64 + bits.TrailingZeros64(a.hi)
 }
 
-// highBit returns the index of the most-significant set bit (-1 for zero), i.e.
-// floor(log2(a)).
+// highBit returns the index of the most-significant set bit (-1 for zero, since
+// math/bits returns 64 for a zero word), i.e. floor(log2(a)).
 func (a u128) highBit() int {
 	if a.hi != 0 {
 		return 127 - bits.LeadingZeros64(a.hi)
 	}
-	if a.lo != 0 {
-		return 63 - bits.LeadingZeros64(a.lo)
-	}
-	return -1
+	return 63 - bits.LeadingZeros64(a.lo)
 }
 
 // lowMask returns a value with the low k bits set (0 <= k <= 128).

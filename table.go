@@ -2,6 +2,7 @@ package cidr
 
 import (
 	"net/netip"
+	"slices"
 	"sort"
 )
 
@@ -111,10 +112,10 @@ func sweep(prefixes []pfx) []segment {
 		return nil
 	}
 	prefixes = dedup(prefixes)
-	// open at lo, close just past hi (inf when hi is the family maximum).
+	// open at lo, close just past hi. A prefix ending at the family maximum has
+	// no close event: nothing lies past it, so there is nothing to emit.
 	type event struct {
 		at     netip.Addr
-		inf    bool
 		open   bool
 		length int
 		vi     int32
@@ -124,16 +125,9 @@ func sweep(prefixes []pfx) []segment {
 		evs = append(evs, event{at: p.lo, open: true, length: p.length, vi: p.vi})
 		if n := p.hi.Next(); n.IsValid() {
 			evs = append(evs, event{at: n, length: p.length, vi: p.vi})
-		} else {
-			evs = append(evs, event{inf: true, length: p.length, vi: p.vi})
 		}
 	}
-	sort.Slice(evs, func(i, j int) bool {
-		if evs[i].inf != evs[j].inf {
-			return !evs[i].inf // finite coordinates before +infinity
-		}
-		return evs[i].at.Less(evs[j].at)
-	})
+	slices.SortFunc(evs, func(x, y event) int { return x.at.Compare(y.at) })
 
 	var (
 		count [129]int   // active prefixes per mask length (0..128)
@@ -141,8 +135,8 @@ func sweep(prefixes []pfx) []segment {
 		out   []segment
 	)
 	for i := 0; i < len(evs); {
-		at, inf := evs[i].at, evs[i].inf
-		for i < len(evs) && evs[i].inf == inf && (inf || evs[i].at == at) {
+		at := evs[i].at
+		for i < len(evs) && evs[i].at == at {
 			e := evs[i]
 			if e.open {
 				count[e.length]++
@@ -151,9 +145,6 @@ func sweep(prefixes []pfx) []segment {
 				count[e.length]--
 			}
 			i++
-		}
-		if inf { // past the address space; nothing left to emit
-			break
 		}
 		winner := int32(-1)
 		for l := 128; l >= 0; l-- {
