@@ -150,7 +150,9 @@ switch; the workload is.
 Every input prefix is masked to its network and split into the v4 or v6 array by
 family. Query addresses are `Unmap`ped first, so an IPv4-in-IPv6 form
 (`::ffff:1.2.3.4`) is treated as the IPv4 address it represents and matched
-against the v4 array. The two families never cross.
+against the v4 array. The two families never cross. For the same reason, a
+mapped prefix (`::ffff:a.b.c.d/n`, n ≥ 96) is stored as the IPv4 prefix `/n−96`;
+shorter prefixes stay IPv6.
 
 ## Immutability & concurrency
 
