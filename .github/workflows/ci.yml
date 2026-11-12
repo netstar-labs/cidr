@@ -33,11 +33,14 @@ jobs:
         working-directory: cmd/mmdb-write
         env:
           GOWORK: "off"
+      # short fuzz passes; -fuzzminimizetime 0 on every target because a worker stuck in
+      # the per-input minimiser at the end of -fuzztime fails the run with "context
+      # deadline exceeded" (seen on FuzzParsers) or stalls it (FuzzOpenMMDB)
       # short fuzz pass over the spec parser and build/query path
-      - run: go test -run xxx -fuzz FuzzParseSpec -fuzztime 15s .
+      - run: go test -run xxx -fuzz FuzzParseSpec -fuzztime 15s -fuzzminimizetime 0 .
       # and over the RIR delegated-record parser, which reads fetched bytes
-      - run: go test -run xxx -fuzz FuzzParseLine -fuzztime 15s ./cmd/rir-country
+      - run: go test -run xxx -fuzz FuzzParseLine -fuzztime 15s -fuzzminimizetime 0 ./cmd/rir-country
       # and over the four operator-feed parsers, which also read fetched bytes
-      - run: go test -run xxx -fuzz FuzzParsers -fuzztime 15s ./cmd/provider-function
+      - run: go test -run xxx -fuzz FuzzParsers -fuzztime 15s -fuzzminimizetime 0 ./cmd/provider-function
       # and over the MMDB reader (untrusted files); -fuzzminimizetime 0 avoids the stalling per-input minimiser, crashes are still saved
       - run: go test -run xxx -fuzz FuzzOpenMMDB -fuzztime 15s -fuzzminimizetime 0 .
