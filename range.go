@@ -12,7 +12,10 @@ import (
 // (::ffff:a.b.c.d) are unmapped together, and only when neither end is a genuine
 // IPv6 address: ::ffff:1.2.3.0-::ffff:1.2.3.255 is an IPv4 range, but
 // ::-::ffff:ffff:ffff has one end in ::ffff:0:0/96 and stays an IPv6 range
-// (it is kept, not rejected as mixed-family).
+// (it is kept, not rejected as mixed-family). Such a range is stored whole in the
+// IPv6 array, so the part of it inside ::ffff:0:0/96 is not matched by IPv4 (or
+// IPv4-mapped) queries; TableBuilder.AddRange, which adds the range piece by
+// piece, files those pieces as IPv4 instead. Real feeds do not produce such ranges.
 // This is the natural entry point for range-based feeds (start/end columns)
 // such as iptoasn.com or the RIR delegated files.
 func (b *Builder) AddRange(lo, hi netip.Addr) {
