@@ -303,3 +303,45 @@ func TestLoadLineLimitBoundary(t *testing.T) {
 		t.Errorf("line of 1<<20 bytes: err = %v, want bufio.ErrTooLong", err)
 	}
 }
+
+func TestParseRefsStrict(t *testing.T) {
+	const ok = `{"name":"n","version":1,"list":["10.0.0.0/8"]}`
+	for _, tc := range []struct {
+		name, in string
+		wantErr  bool
+		wantLen  int
+	}{
+		{"normal", ok, false, 1},
+		{"trailing whitespace", ok + " \n\t\r\n", false, 1},
+		{"explicit empty list", `{"name":"n","version":1,"list":[]}`, false, 0},
+		{"missing list", `{"name":"n","version":1}`, true, 0},
+		{"renamed list", `{"name":"n","version":1,"lst":["10.0.0.0/8"]}`, true, 0},
+		{"null list", `{"name":"n","version":1,"list":null}`, true, 0},
+		{"empty object", `{}`, true, 0},
+		{"trailing garbage", ok + ` garbage`, true, 0},
+		{"trailing brace", ok + `}`, true, 0},
+		{"two envelopes", ok + ok, true, 0},
+		{"two envelopes newline", ok + "\n" + ok, true, 0},
+		{"empty input", ``, true, 0},
+	} {
+		rf, err := ParseRefs(strings.NewReader(tc.in))
+		if (err != nil) != tc.wantErr {
+			t.Errorf("%s: err = %v, wantErr %v", tc.name, err, tc.wantErr)
+			continue
+		}
+		if err == nil && len(rf.List) != tc.wantLen {
+			t.Errorf("%s: list len = %d, want %d", tc.name, len(rf.List), tc.wantLen)
+		}
+		if err != nil && rf != nil {
+			t.Errorf("%s: got a non-nil Refs with an error", tc.name)
+		}
+	}
+
+	// the Load* wrappers propagate the error rather than return an empty set
+	if s, err := LoadRefsSet(strings.NewReader(`{"name":"n","version":1}`)); err == nil || s != nil {
+		t.Errorf("LoadRefsSet missing list = %v, %v; want nil, error", s, err)
+	}
+	if s, tb, err := LoadRefsASN(strings.NewReader(ok + ok)); err == nil || s != nil || tb != nil {
+		t.Errorf("LoadRefsASN two envelopes: want nil, nil, error")
+	}
+}
