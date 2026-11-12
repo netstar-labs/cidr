@@ -199,20 +199,20 @@ library and this package — see [example/](example/README.md).
 Both queries are a single binary search over integer arrays, with no allocation.
 Measured with `go test -run xxx -bench . -benchmem -count 6 .` on an Apple M2 Pro
 (10 cores), Go 1.27.3 darwin/arm64, a lightly loaded machine; the six runs of
-each benchmark agree to within 4%, and the table gives the median (min in
+each benchmark agree to within 7%, and the table gives the median (min in
 parentheses). Each benchmark builds a set of random `/24`s (IPv4) or `/48`s
 (IPv6) and queries 4,096 random addresses in rotation — at these densities
 almost all of them are misses:
 
 | `BenchmarkSetContains…` / `BenchmarkTableLookup…` | set | `Set.Contains` | `Table.Lookup` | allocs |
 |---|---|---:|---:|---:|
-| *(no suffix)* | 4,000 IPv4 `/24`s | 40 ns (39.7) | 44 ns (43.6) | 0 |
-| `V6` | 4,000 IPv6 `/48`s | 49 ns (48.6) | 54 ns (53.0) | 0 |
-| `500k` | 500,000 IPv4 `/24`s | 81 ns (80.0) | 90 ns (89.3) | 0 |
-| `V6500k` | 500,000 IPv6 `/48`s | 100 ns (98.9) | 108 ns (107.5) | 0 |
+| *(no suffix)* | 4,000 IPv4 `/24`s | 40 ns (39.7) | 41 ns (40.9) | 0 |
+| `V6` | 4,000 IPv6 `/48`s | 49 ns (48.3) | 51 ns (48.9) | 0 |
+| `500k` | 500,000 IPv4 `/24`s | 82 ns (80.8) | 90 ns (88.2) | 0 |
+| `V6500k` | 500,000 IPv6 `/48`s | 100 ns (98.7) | 107 ns (105.8) | 0 |
 
 Going from 4,000 to 500,000 prefixes about doubles the time, and IPv6 costs
-roughly 20–25% more than IPv4 at either size. Before the integer layout (frozen
+roughly 20% more than IPv4 at either size. Before the integer layout (frozen
 arrays of `netip.Addr`) the 4,000-prefix IPv4 case measured 87–88 ns on the same
 machine.
 

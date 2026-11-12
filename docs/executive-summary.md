@@ -52,7 +52,7 @@ matters:
 
 The trie figures come from a design-time comparison against a path-compressed trie
 that is not part of this repository and is not reproduced here; the `Set`/`Table`
-lookup timings (IPv4: ~40–45 ns at 4,000 prefixes, ~80–90 ns at 500,000; IPv6:
+lookup timings (IPv4: ~40 ns at 4,000 prefixes, ~80–90 ns at 500,000; IPv6:
 ~50 and ~100–110 ns; zero allocations; Apple M2 Pro) are reproducible with
 `go test -bench .` and tabulated in [architecture.md](architecture.md#benchmarks).
 

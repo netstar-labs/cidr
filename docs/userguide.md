@@ -618,7 +618,7 @@ Expansion streams in input order and nothing is buffered, sorted, or
 de-duplicated, so overlapping input prefixes emit overlapping addresses — pipe
 through `ipfold` to normalize. Unlike folding, the output size is set by the
 input's *coverage*, not its line count: a single `/8` is 16.7M addresses
-(~0.3 s) and an IPv6 `/64` is 1.8×10¹⁹. Use `-count` to check first, and `-max N`
+(~0.2 s) and an IPv6 `/64` is 1.8×10¹⁹. Use `-count` to check first, and `-max N`
 in scripts, which aborts with a non-zero exit before the prefix that would push
 output past `N` (keeping whatever was already written). Build a stamped binary
 with `build/ipunfold [user@host]`.

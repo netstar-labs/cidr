@@ -74,7 +74,7 @@ ipunfold -count < cidrs.txt       # how many addresses would this be?
 Expansion streams in input order — nothing is buffered, sorted, or
 de-duplicated, so overlapping input prefixes emit overlapping addresses (pipe
 through `ipfold` to normalize). Output is unbounded by nature: one `/8` is 16.7M
-addresses (~0.3 s) and an IPv6 `/64` is 1.8×10¹⁹. Check the size with `-count`
+addresses (~0.2 s) and an IPv6 `/64` is 1.8×10¹⁹. Check the size with `-count`
 first; in scripts, `-max N` aborts with a non-zero exit before the prefix that
 would push output past `N`, keeping whatever was already written.
 
